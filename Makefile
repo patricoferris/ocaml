@@ -216,7 +216,7 @@ opt: checknative
 # Native-code versions of the tools
 .PHONY: opt.opt
 opt.opt: checknative
-	$(MAKE) checkstack
+	# $(MAKE) checkstack
 	$(MAKE) runtime
 	$(MAKE) core
 	$(MAKE) ocaml
