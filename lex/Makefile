@@ -20,7 +20,7 @@ ROOTDIR = ..
 -include $(ROOTDIR)/Makefile.config
 -include $(ROOTDIR)/Makefile.common
 
-CAMLYACC ?= $(ROOTDIR)/yacc/ocamlyacc
+CAMLYACC ?= ocamlyacc
 
 CAMLC = $(BOOT_OCAMLC) -strict-sequence -nostdlib \
         -I $(ROOTDIR)/boot -use-prims $(ROOTDIR)/runtime/primitives
