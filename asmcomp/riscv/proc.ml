@@ -141,6 +141,7 @@ let calling_conventions
           loc.(i) <- phys_reg !float;
           incr float
         end else begin
+          ofs := Misc.align !ofs size_float;
           loc.(i) <- stack_slot (make_stack !ofs) Float;
           ofs := !ofs + size_float
         end
@@ -217,6 +218,7 @@ let external_calling_conventions
               loc.(i) <- [| phys_reg !int |];
               incr int
             end else begin
+              ofs := Misc.align !ofs size_float;
               loc.(i) <- [| stack_slot (make_stack !ofs) Float |];
               ofs := !ofs + size_float
             end

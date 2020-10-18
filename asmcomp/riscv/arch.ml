@@ -17,6 +17,12 @@
 
 open Format
 
+let rv64 =
+  match Config.model with
+  | "riscv64" -> true
+  | "riscv32" -> false
+  | _ -> assert false
+
 (* Machine-specific command-line options *)
 
 let command_line_options = []
@@ -42,7 +48,7 @@ let is_immediate n =
 
 let big_endian = false
 
-let size_addr = 8
+let size_addr = if rv64 then 8 else 4
 let size_int = size_addr
 let size_float = 8
 
