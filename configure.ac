@@ -958,6 +958,8 @@ AS_CASE([$host],
     [arch=arm64; system=freebsd],
   [x86_64-*-cygwin*],
     [arch=amd64; system=cygwin],
+  [riscv32-*-linux*],
+    [arch=riscv32; model=riscv32; system=linux],
   [riscv64-*-linux*],
     [arch=riscv; model=riscv64; system=linux]
 )
@@ -1063,7 +1065,7 @@ AS_CASE(["$arch,$system"],
   [*,dragonfly],
     [default_as="${toolpref}as"
     default_aspp="${toolpref}cc -c"],
-  [amd64,*|arm,*|arm64,*|i386,*|riscv,*],
+  [amd64,*|arm,*|arm64,*|i386,*|riscv,*|riscv32,*|],
     [AS_CASE([$ocaml_cv_cc_vendor],
       [clang-*], [default_as="${toolpref}clang -c -Wno-trigraphs"
                   default_aspp="${toolpref}clang -c -Wno-trigraphs"],
