@@ -1,0 +1,233 @@
+configure: Configuring OCaml version 4.11.0+dev6-2020-06-03
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... riscv32-unknown-linux-gnu
+checking target system type... riscv32-unknown-linux-gnu
+checking for riscv32-unknown-linux-gnu-ld... riscv32-unknown-linux-gnu-ld
+checking how to print strings... printf
+checking for riscv32-unknown-linux-gnu-gcc... riscv32-unknown-linux-gnu-gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... yes
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether riscv32-unknown-linux-gnu-gcc accepts -g... yes
+checking for riscv32-unknown-linux-gnu-gcc option to accept ISO C89... none needed
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for fgrep... /bin/grep -F
+checking for ld used by riscv32-unknown-linux-gnu-gcc... riscv32-unknown-linux-gnu-ld
+checking if the linker (riscv32-unknown-linux-gnu-ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... /usr/local/bin/riscv32-unknown-linux-gnu-nm -B
+checking the name lister (/usr/local/bin/riscv32-unknown-linux-gnu-nm -B) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1572864
+checking how to convert x86_64-pc-linux-gnu file names to riscv32-unknown-linux-gnu format... func_convert_file_noop
+checking how to convert x86_64-pc-linux-gnu file names to toolchain format... func_convert_file_noop
+checking for riscv32-unknown-linux-gnu-ld option to reload object files... -r
+checking for riscv32-unknown-linux-gnu-objdump... riscv32-unknown-linux-gnu-objdump
+checking how to recognize dependent libraries... pass_all
+checking for riscv32-unknown-linux-gnu-dlltool... no
+checking for dlltool... no
+checking how to associate runtime and link libraries... printf %s\n
+checking for riscv32-unknown-linux-gnu-ar... riscv32-unknown-linux-gnu-ar
+checking for archiver @FILE support... @
+checking for riscv32-unknown-linux-gnu-strip... riscv32-unknown-linux-gnu-strip
+checking for riscv32-unknown-linux-gnu-ranlib... riscv32-unknown-linux-gnu-ranlib
+checking for gawk... no
+checking for mawk... mawk
+checking command to parse /usr/local/bin/riscv32-unknown-linux-gnu-nm -B output from riscv32-unknown-linux-gnu-gcc object... ok
+checking for sysroot... no
+checking for a working dd... /bin/dd
+checking how to truncate binary pipes... /bin/dd bs=4096 count=1
+checking for riscv32-unknown-linux-gnu-mt... no
+checking for mt... no
+checking if : is a manifest tool... no
+checking how to run the C preprocessor... riscv32-unknown-linux-gnu-gcc -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if riscv32-unknown-linux-gnu-gcc supports -fno-rtti -fno-exceptions... no
+checking for riscv32-unknown-linux-gnu-gcc option to produce PIC... -fPIC -DPIC
+checking if riscv32-unknown-linux-gnu-gcc PIC flag -fPIC -DPIC works... yes
+checking if riscv32-unknown-linux-gnu-gcc static flag -static works... yes
+checking if riscv32-unknown-linux-gnu-gcc supports -c -o file.o... yes
+checking if riscv32-unknown-linux-gnu-gcc supports -c -o file.o... (cached) yes
+checking whether the riscv32-unknown-linux-gnu-gcc linker (riscv32-unknown-linux-gnu-ld) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+checking C compiler vendor... gcc-10-2
+checking whether #! works in shell scripts... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking for cos in -lm... yes
+checking math.h usability... yes
+checking math.h presence... yes
+checking for math.h... yes
+checking for unistd.h... (cached) yes
+checking for stdint.h... (cached) yes
+checking sys/shm.h usability... yes
+checking sys/shm.h presence... yes
+checking for sys/shm.h... yes
+checking for dirent.h... yes
+checking for sys/select.h... yes
+checking for off_t... yes
+checking size of int... 4
+checking size of long... 4
+checking size of long *... 4
+checking size of short... 2
+checking size of long long... 8
+configure: Target is a 32 bits architecture
+checking whether byte ordering is bigendian... no
+checking alignment of double... 8
+checking alignment of long... 4
+checking alignment of long long... 8
+checking whether the C compiler supports __attribute__((aligned(n)))... yes
+checking for riscv32-unknown-linux-gnu-ld... riscv32-unknown-linux-gnu-ld
+configure: checking semantics of signal handlers
+checking for sigaction... yes
+checking for sigprocmask... yes
+configure: POSIX signal handling found.
+checking for expm1... yes
+checking for log1p... yes
+checking for hypot... yes
+checking for fma... yes
+checking for copysign... yes
+checking for getrusage... yes
+checking for times... yes
+checking for secure_getenv... yes
+checking for issetugid... no
+checking for library containing clock_gettime... none required
+checking for socket... yes
+checking for socketpair... yes
+checking for bind... yes
+checking for listen... yes
+checking for accept... yes
+checking for connect... yes
+checking for socklen_t... yes
+checking for inet_aton... yes
+checking for struct sockaddr_in6... yes
+checking for getaddrinfo... yes
+checking for getnameinfo... yes
+checking for inet_pton... yes
+checking for inet_ntop... yes
+checking for rewinddir... yes
+checking for lockf... yes
+checking for mkfifo... yes
+checking for getcwd... yes
+checking for sys/types.h... (cached) yes
+checking utime.h usability... yes
+checking utime.h presence... yes
+checking for utime.h... yes
+checking for utime... yes
+checking for utimes... yes
+checking for fchmod... yes
+checking for fchown... yes
+checking for truncate... yes
+checking for ftruncate... yes
+checking for select... yes
+checking for fd_set... yes
+checking for nanosleep... yes
+checking for symlink... yes
+checking for readlink... yes
+checking for lstat... yes
+checking for waitpid... yes
+checking for wait4... yes
+checking for getgroups... yes
+checking for setgroups... yes
+checking for initgroups... yes
+checking termios.h usability... yes
+checking termios.h presence... yes
+checking for termios.h... yes
+checking for tcgetattr... yes
+checking for tcsetattr... yes
+checking for tcsendbreak... yes
+checking for tcflush... yes
+checking for tcflow... yes
+checking for setitimer... yes
+checking for gethostname... yes
+checking sys/utsname.h usability... yes
+checking sys/utsname.h presence... yes
+checking for sys/utsname.h... yes
+checking for uname... yes
+checking for gettimeofday... yes
+checking for mktime... yes
+checking for setsid... yes
+checking for putenv... yes
+checking for setenv... yes
+checking for unsetenv... yes
+checking locale.h usability... yes
+checking locale.h presence... yes
+checking for locale.h... yes
+checking for newlocale... yes
+checking for freelocale... yes
+checking for uselocale... yes
+checking xlocale.h usability... no
+checking xlocale.h presence... no
+checking for xlocale.h... no
+checking for strtod_l... yes
+checking for dlopen... no
+checking for dlopen in -ldl... yes
+configure: Dynamic loading of shared libraries is supported.
+checking sys/mman.h usability... yes
+checking sys/mman.h presence... yes
+checking for sys/mman.h... yes
+checking for mmap... yes
+checking for munmap... yes
+checking for pwrite... yes
+checking whether the C compiler supports -fdebug-prefix-map... yes
+checking for struct stat.st_atim.tv_nsec... yes
+configure: stat supports nanosecond precision
+checking how many arguments gethostbyname_r() takes... six
+checking how many arguments gethostbyaddr_r() takes... eight
+checking for mkstemp... yes
+checking for nice... yes
+checking for dup3... yes
+checking for pipe2... yes
+checking for accept4... yes
+checking for getauxval... yes
+checking for execvpe... yes
+checking for ffs... yes
+checking for _BitScanForward... no
+configure: replay debugger disabled
+checking whether stack overflows can be detected... no
+checking whether riscv32-unknown-linux-gnu-gcc is Clang... no
+checking whether pthreads work with -pthread... yes
+checking for joinable pthread attribute... PTHREAD_CREATE_JOINABLE
+checking whether more special flags are required for pthreads... no
+checking for PTHREAD_PRIO_INHERIT... yes
+configure: the POSIX threads library is supported
+checking for sigwait... yes
+checking bfd.h usability... no
+checking bfd.h presence... no
+checking for bfd.h... no
+configure: BFD library not found, 'ocamlobjinfo' will be unable to display info on .cmxs files.
+checking whether the assembler supports --debug-prefix-map... no
+checking whether the assembler supports CFI directives... no
+configure: not using frame pointers
+checking whether mmap supports huge pages... no assumed
+checking whether to build spacetime... no
+configure: Disabling function sections.
+configure: creating ./config.status
+config.status: creating Makefile.common
+config.status: creating Makefile.config
+config.status: creating tools/eventlog_metadata
+config.status: creating runtime/caml/m.h
+config.status: runtime/caml/m.h is unchanged
+config.status: creating runtime/caml/s.h
+config.status: runtime/caml/s.h is unchanged
+config.status: executing libtool commands
