@@ -188,7 +188,7 @@ let configuration_variables =
   p "ext_asm" ext_asm;
   p "ext_lib" ext_lib;
   p "ext_dll" ext_dll;
-  p "os_type" Sys.os_type;
+  p "os_type" "%%OCAML_OS_TYPE%%";
   p "default_executable_name" default_executable_name;
   p_bool "systhread_supported" systhread_supported;
   p "host" host;

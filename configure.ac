@@ -87,6 +87,7 @@ AC_SUBST([arch])
 AC_SUBST([arch64])
 AC_SUBST([model])
 AC_SUBST([system])
+AC_SUBST([ostype])
 AC_SUBST([systhread_support])
 AC_SUBST([unix_or_win32])
 AC_SUBST([unixlib])
@@ -1065,7 +1066,7 @@ AS_CASE(["$arch,$system"],
   [*,dragonfly],
     [default_as="${toolpref}as"
     default_aspp="${toolpref}cc -c"],
-  [amd64,*|arm,*|arm64,*|i386,*|riscv,*|riscv32,*|],
+  [amd64,*|arm,*|arm64,*|i386,*|riscv,*|riscv32,*],
     [AS_CASE([$ocaml_cv_cc_vendor],
       [clang-*], [default_as="${toolpref}clang -c -Wno-trigraphs"
                   default_aspp="${toolpref}clang -c -Wno-trigraphs"],

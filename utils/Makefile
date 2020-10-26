@@ -105,6 +105,7 @@ config.ml: config.mlp $(ROOTDIR)/Makefile.config Makefile
 	    $(call SUBST,SYSTEM) \
 	    $(call SUBST,SYSTHREAD_SUPPORT) \
 	    $(call SUBST,TARGET) \
+	    $(call SUBST,OCAML_OS_TYPE) \
 	    $(call SUBST,WITH_FRAME_POINTERS) \
 	    $(call SUBST,WITH_PROFINFO) \
 	    $(call SUBST,WITH_SPACETIME) \
