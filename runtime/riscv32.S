@@ -410,13 +410,13 @@ caml_system__code_end:
 /* GC roots for callback */
 
         .section .data
-        .align  3
+        .align  2
         .globl  caml_system__frametable
         .type   caml_system__frametable, @object
 caml_system__frametable:
-        .quad   1               /* one descriptor */
-        .quad   .Lcaml_retaddr  /* return address into callback */
+        .long   1               /* one descriptor */
+        .long   .Lcaml_retaddr  /* return address into callback */
         .short  -1              /* negative frame size => use callback link */
         .short  0               /* no roots */
-        .align  3
+        .align  2
         .size   caml_system__frametable, .-caml_system__frametable

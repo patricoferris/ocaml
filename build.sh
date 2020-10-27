@@ -14,9 +14,9 @@ make clean
 ./configure --host=riscv32-unknown-linux-gnu --prefix=/riscv-ocaml \ 
 	    --disable-ocamldoc --disable-debugger --disable-ocamltest \ 
 	    --with-target-bindir=/riscv-ocaml/bin \
-	    CC='riscv32-unknown-linux-gnu-gcc -march=rv32g -mabi=ilp32d' \ 
-	    AS='riscv32-unknown-linux-gnu-as -march=rv32g' \ 
-	    ASPP='riscv32-unknown-linux-gnu-gcc -march=rv32g -c' 
+	    CC='riscv32-unknown-linux-gnu-gcc -g -march=rv32g -mabi=ilp32d' \ 
+	    AS='riscv32-unknown-linux-gnu-as -g -march=rv32g' \ 
+	    ASPP='riscv32-unknown-linux-gnu-gcc -g -march=rv32g -c' 
 make -j8 world
 make -j4 opt
 cp /riscv-ocaml/bin/ocamlrun runtime 
