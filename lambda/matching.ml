@@ -3454,7 +3454,7 @@ let failure_handler ~scopes loc ~failer () =
     Lprim
       ( Praise Raise_regular,
         [ Lprim
-            ( Pmakeblock (0, Immutable, None),
+            ( Pmakeblock (0, Immutable, None, Alloc_heap),
               [ slot;
                 Lconst
                   (Const_block
@@ -3603,6 +3603,7 @@ let rec map_return f = function
   | ( Lvar _ | Lmutvar _ | Lconst _ | Lapply _ | Lfunction _ | Lsend _ | Lprim _
     | Lwhile _ | Lfor _ | Lassign _ | Lifused _ ) as l ->
       f l
+  | Lbeginregion (r, l) -> Lbeginregion (r, map_return f l)
 
 (* The 'opt' reference indicates if the optimization is worthy.
 
@@ -3773,7 +3774,7 @@ let do_for_multiple_match ~scopes loc paraml pat_act_list partial =
   let repr = None in
   let arg =
     let sloc = Scoped_location.of_location ~scopes loc in
-    Lprim (Pmakeblock (0, Immutable, None), paraml, sloc) in
+    Lprim (Pmakeblock (0, Immutable, None, Alloc_heap (* FIXME *)), paraml, sloc) in
   let handler =
     let partial = check_partial pat_act_list partial in
     let rows = map_on_rows (fun p -> (p, [])) pat_act_list in

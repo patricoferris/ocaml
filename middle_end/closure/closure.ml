@@ -100,6 +100,7 @@ let occurs_var var u =
     | Usend(_, met, obj, args, _) ->
         occurs met || occurs obj || List.exists occurs args
     | Uunreachable -> false
+    | Ubeginregion (_,e) -> occurs e
   and occurs_array a =
     try
       for i = 0 to Array.length a - 1 do
@@ -206,6 +207,9 @@ let lambda_smaller lam threshold =
         size := !size + 8;
         lambda_size met; lambda_size obj; lambda_list_size args
     | Uunreachable -> ()
+    | Ubeginregion (_,e) ->
+        size := !size + 4;
+        lambda_size e
   and lambda_list_size l = List.iter lambda_size l
   and lambda_array_size a = Array.iter lambda_size a in
   try
@@ -465,7 +469,7 @@ let simplif_prim_pure ~backend fpc p (args, approxs) dbg =
   let open Clambda_primitives in
   match p, args, approxs with
   (* Block construction *)
-  | Pmakeblock(tag, Immutable, _kind), _, _ ->
+  | Pmakeblock(tag, Immutable, _kind, _mode), _, _ ->
       let field = function
         | Value_const c -> c
         | _ -> raise Exit
@@ -517,7 +521,7 @@ let simplif_prim ~backend fpc p (args, approxs as args_approxs) dbg =
     (* XXX : always return the same approxs as simplif_prim_pure? *)
     let approx =
       match p with
-      | P.Pmakeblock(_, Immutable, _kind) ->
+      | P.Pmakeblock(_, Immutable, _kind, _mode) ->
           Value_tuple (Array.of_list approxs)
       | _ ->
           Value_unknown
@@ -702,6 +706,10 @@ let rec substitute loc ((backend, fpc) as st) sb rn ulam =
             List.map (substitute loc st sb rn) ul, dbg)
   | Uunreachable ->
       Uunreachable
+  | Ubeginregion (r,e) ->
+      let r' = VP.rename r in
+      Ubeginregion (r', substitute loc st
+                          (V.Map.add (VP.var r) (Uvar (VP.var r')) sb) rn e)
 
 type env = {
   backend : (module Backend_intf.S);
@@ -756,14 +764,13 @@ let bind_params { backend; mutable_vars; _ } loc fdesc params args funct body =
           let p1' = VP.rename p1 in
           let u1, u2 =
             match VP.name p1, a1 with
-            | "*opt*", Uprim(P.Pmakeblock(0, Immutable, kind), [a], dbg) ->
+              | "*opt*", Uprim(P.Pmakeblock(0, Immutable, kind, mode), [a], dbg) ->
                 (* This parameter corresponds to an optional parameter,
                    and although it is used twice pushing the expression down
                    actually allows us to remove the allocation as it will
                    appear once under a Pisint primitive and once under a Pfield
                    primitive (see [simplif_prim_pure]) *)
-                a, Uprim(P.Pmakeblock(0, Immutable, kind),
-                         [Uvar (VP.var p1')], dbg)
+                a, Uprim(P.Pmakeblock(0, Immutable, kind, mode), [Uvar (VP.var p1')], dbg)
             | _ ->
                 a1, Uvar (VP.var p1')
           in
@@ -1208,6 +1215,9 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
       close env lam
   | Lifused _ ->
       assert false
+  | Lbeginregion (id, lam) ->
+      let ulam, approx = close env lam in
+      Ubeginregion (VP.create id, ulam), approx
 
 and close_list env = function
     [] -> []
@@ -1494,6 +1504,7 @@ let collect_exported_structured_constants a =
     | Uassign (_, u) -> ulam u
     | Usend (_, u1, u2, ul, _) -> ulam u1; ulam u2; List.iter ulam ul
     | Uunreachable -> ()
+    | Ubeginregion (_, u) -> ulam u
   in
   approx a
 

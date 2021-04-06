@@ -73,7 +73,7 @@ let oper_result_type = function
       | Single | Double -> typ_float
       | _ -> typ_int
       end
-  | Calloc -> typ_val
+  | Calloc _ -> typ_val
   | Cstore (_c, _) -> typ_void
   | Cdls_get -> typ_val
   | Caddi | Csubi | Cmuli | Cmulhi | Cdivi | Cmodi |
@@ -87,6 +87,8 @@ let oper_result_type = function
   | Craise _ -> typ_void
   | Ccheckbound -> typ_void
   | Copaque -> typ_val
+  | Cbeginregion -> typ_int
+  | Cendregion -> typ_void
 
 (* Infer the size in bytes of the result of an expression whose evaluation
    may be deferred (cf. [emit_parts]). *)
@@ -324,7 +326,8 @@ method is_simple_expr = function
   | Cop(op, args, _) ->
       begin match op with
         (* The following may have side effects *)
-      | Capply _ | Cextcall _ | Calloc | Cstore _ | Craise _ | Copaque -> false
+      | Capply _ | Cextcall _ | Calloc _ | Cstore _ | Craise _ | Copaque
+      | Cbeginregion | Cendregion -> false
         (* The remaining operations are simple if their args are *)
       | Cload _ | Caddi | Csubi | Cmuli | Cmulhi | Cdivi | Cmodi | Cand | Cor
       | Cxor | Clsl | Clsr | Casr | Ccmpi _ | Caddv | Cadda | Ccmpa _ | Cnegf
@@ -364,8 +367,8 @@ method effects_of exp =
   | Cop (op, args, _) ->
     let from_op =
       match op with
-      | Capply _ | Cextcall _ | Copaque -> EC.arbitrary
-      | Calloc -> EC.none
+      | Capply _ | Cextcall _ | Copaque | Cbeginregion | Cendregion -> EC.arbitrary
+      | Calloc _ -> EC.none
       | Cstore _ -> EC.effect_only Effect.Arbitrary
       | Craise _ | Ccheckbound -> EC.effect_only Effect.Raise
       | Cload {mutability = Asttypes.Immutable} -> EC.none
@@ -465,7 +468,7 @@ method select_operation op args _dbg =
         (* Inversion addr/datum in Istore *)
       end
   | (Cdls_get, _) -> Idls_get, args
-  | (Calloc, _) -> (Ialloc {bytes = 0; dbginfo = []}), args
+  | (Calloc mode, _) -> (Ialloc {bytes = 0; dbginfo = []; mode}), args
   | (Caddi, _) -> self#select_arith_comm Iadd args
   | (Csubi, _) -> self#select_arith Isub args
   | (Cmuli, _) -> self#select_arith_comm Imul args
@@ -492,6 +495,12 @@ method select_operation op args _dbg =
   | (Cintoffloat, _) -> (Iintoffloat, args)
   | (Ccheckbound, _) ->
     self#select_arith Icheckbound args
+  | (Cbeginregion, _) ->
+     Iextcall { func="caml_local_region_begin";
+                      ty_res = typ_int; ty_args=[]; alloc=false }, args
+  | (Cendregion, _) ->
+      Iextcall { func="caml_local_region_end";
+                 ty_res = typ_void; ty_args = [XInt]; alloc=false }, args
   | _ -> Misc.fatal_error "Selection.select_oper"
 
 method private select_arith_comm op = function
@@ -726,13 +735,15 @@ method emit_expr (env:environment) exp =
                   loc_arg (Proc.loc_external_results (Reg.typv rd)) in
               self#insert_move_results env loc_res rd stack_ofs;
               Some rd
-          | Ialloc { bytes = _; } ->
+          | Ialloc { bytes = _; mode } ->
               let rd = self#regs_for typ_val in
               let bytes = size_expr env (Ctuple new_args) in
               assert (bytes mod Arch.size_addr = 0);
               let alloc_words = bytes / Arch.size_addr in
               let op =
-                Ialloc { bytes; dbginfo = [{alloc_words; alloc_dbg = dbg}] }
+                Ialloc { bytes;
+                         dbginfo = [{alloc_words; alloc_dbg = dbg}];
+                         mode }
               in
               self#insert_debug env (Iop op) dbg [||] rd;
               self#emit_stores env new_args rd;

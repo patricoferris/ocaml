@@ -178,7 +178,7 @@ let pperform = "Pperform"
 let presume = "Presume"
 let preperform = "Preperform"
 let pdls_get = "Pdls_get"
-
+let pendregion = "Pendregion"
 let pabsfloat_arg = "Pabsfloat_arg"
 let paddbint_arg = "Paddbint_arg"
 let paddfloat_arg = "Paddfloat_arg"
@@ -290,7 +290,7 @@ let pperform_arg = "Pperform_arg"
 let presume_arg = "Presume_arg"
 let preperform_arg = "Preperform_arg"
 let pdls_get_arg = "Pdls_get_arg"
-
+let pendregion_arg = "Pendregion_arg"
 let raise = "raise"
 let raise_arg = "raise_arg"
 let read_mutable = "read_mutable"
@@ -434,6 +434,7 @@ let of_primitive : Lambda.primitive -> string = function
   | Presume -> presume
   | Preperform -> preperform
   | Pdls_get -> pdls_get
+  | Pendregion -> pendregion
 
 let of_primitive_arg : Lambda.primitive -> string = function
   | Pbytes_of_string -> pbytes_of_string_arg
@@ -546,3 +547,4 @@ let of_primitive_arg : Lambda.primitive -> string = function
   | Presume -> presume_arg
   | Preperform -> preperform_arg
   | Pdls_get -> pdls_get_arg
+  | Pendregion -> pendregion_arg

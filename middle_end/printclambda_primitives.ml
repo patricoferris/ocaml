@@ -57,10 +57,14 @@ let primitive ppf (prim:Clambda_primitives.primitive) =
   match prim with
   | Pread_symbol sym ->
       fprintf ppf "read_symbol %s" sym
-  | Pmakeblock(tag, Immutable, shape) ->
-      fprintf ppf "makeblock %i%a" tag Printlambda.block_shape shape
-  | Pmakeblock(tag, Mutable, shape) ->
-      fprintf ppf "makemutable %i%a" tag Printlambda.block_shape shape
+  | Pmakeblock(tag, mut, shape, mode) ->
+    let kind =
+      match mut, mode with
+      | Immutable, Alloc_heap -> "block"
+      | Mutable, Alloc_heap -> "mutable"
+      | Immutable, Alloc_local -> "localblock"
+      | Mutable, Alloc_local -> "localmutable" in
+    fprintf ppf "make%s %i%a" kind tag Printlambda.block_shape shape
   | Pfield(n, ptr, mut) ->
       let instr =
         match ptr, mut with
@@ -222,3 +226,4 @@ let primitive ppf (prim:Clambda_primitives.primitive) =
   | Patomic_fetch_add -> fprintf ppf "atomic_fetch_add"
   | Popaque -> fprintf ppf "opaque"
   | Pdls_get -> fprintf ppf "dls_get"
+  | Pendregion -> fprintf ppf "endregion"

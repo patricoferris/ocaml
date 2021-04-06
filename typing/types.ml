@@ -447,6 +447,7 @@ let signature_item_id = function
   | Sig_class_type (id, _, _, _)
     -> id
 
+<<<<<<< HEAD
 (**** Definitions for backtracking ****)
 
 type change =
@@ -696,6 +697,8 @@ let newty3 ~level ~scope desc  =
 
 let newty2 ~level desc =
   newty3 ~level ~scope:Ident.lowest_scope desc
+
+type alloc_mode = Alloc_heap | Alloc_local (* FIXME *)
 
                   (**********************************)
                   (*  Utilities for backtracking    *)

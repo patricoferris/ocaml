@@ -24,8 +24,8 @@ let convert_unsafety is_unsafe : Clambda_primitives.is_safe =
 
 let convert (prim : Lambda.primitive) : Clambda_primitives.primitive =
   match prim with
-  | Pmakeblock (tag, mutability, shape) ->
-      Pmakeblock (tag, mutability, shape)
+  | Pmakeblock (tag, mutability, shape, mode) ->
+      Pmakeblock (tag, mutability, shape, mode)
   | Pfield (field, imm_or_pointer, mutability) ->
       Pfield (field, imm_or_pointer, mutability)
   | Pfield_computed -> Pfield_computed
@@ -151,6 +151,7 @@ let convert (prim : Lambda.primitive) : Clambda_primitives.primitive =
   | Patomic_fetch_add -> Patomic_fetch_add
   | Popaque -> Popaque
   | Pdls_get -> Pdls_get
+  | Pendregion -> Pendregion
   | Pbytes_to_string
   | Pbytes_of_string
   | Pctconst _

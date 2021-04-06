@@ -1165,6 +1165,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
               Texp_ident(path, mknoloc (Longident.Lident (Ident.name id)), vd);
               exp_loc = Location.none; exp_extra = [];
               exp_type = Ctype.instance vd.val_type;
+              exp_mode = Alloc_heap;
               exp_attributes = []; (* check *)
               exp_env = val_env'})
           end
@@ -1315,6 +1316,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
                 Texp_ident(path, mknoloc(Longident.Lident (Ident.name id)),vd);
                 exp_loc = Location.none; exp_extra = [];
                 exp_type = Ctype.instance vd.val_type;
+                exp_mode = Alloc_heap;
                 exp_attributes = [];
                 exp_env = val_env;
                }

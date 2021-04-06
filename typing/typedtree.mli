@@ -154,6 +154,7 @@ and expression =
     exp_loc: Location.t;
     exp_extra: (exp_extra * Location.t * attributes) list;
     exp_type: Types.type_expr;
+    exp_mode: Types.alloc_mode;
     exp_env: Env.t;
     exp_attributes: attributes;
    }

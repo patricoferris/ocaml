@@ -45,6 +45,10 @@ type is_safe =
   | Safe
   | Unsafe
 
+type alloc_mode =
+  | Alloc_heap
+  | Alloc_local
+
 type primitive =
   | Pbytes_to_string
   | Pbytes_of_string
@@ -53,7 +57,7 @@ type primitive =
   | Pgetglobal of Ident.t
   | Psetglobal of Ident.t
   (* Operations on heap blocks *)
-  | Pmakeblock of int * mutable_flag * block_shape
+  | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
   | Pfield of int * immediate_or_pointer * mutable_flag
   | Pfield_computed
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -161,6 +165,8 @@ type primitive =
   | Popaque
   (* Fetching domain-local state *)
   | Pdls_get
+  (* Freeing of locally-allocated data *)
+  | Pendregion
 
 and integer_comparison =
     Ceq | Cne | Clt | Cgt | Cle | Cge
@@ -304,6 +310,7 @@ type lambda =
   | Lsend of meth_kind * lambda * lambda * lambda list * scoped_location
   | Levent of lambda * lambda_event
   | Lifused of Ident.t * lambda
+  | Lbeginregion of Ident.t * lambda
 
 and lfunction = private
   { kind: function_kind;

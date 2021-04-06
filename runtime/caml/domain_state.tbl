@@ -51,6 +51,10 @@ DOMAIN_STATE(value*, gc_regs)
 
 DOMAIN_STATE(struct caml_minor_tables*, minor_tables)
 
+DOMAIN_STATE(intnat, local_sp)
+DOMAIN_STATE(struct region_stack*, local_top)
+DOMAIN_STATE(intnat, local_limit)
+
 DOMAIN_STATE(struct mark_stack*, mark_stack)
 /* Mark stack */
 

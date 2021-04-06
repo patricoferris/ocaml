@@ -147,6 +147,9 @@
  (libraries stdlib ocamlcommon ocamlmiddleend)
  (modules_without_implementation x86_ast emitenv)
  (modules
+   ;; file_formats/
+   linear_format
+
    ;; asmcomp/
    afl_instrument arch asmgen asmlibrarian asmlink asmpackager branch_relaxation
    branch_relaxation_intf cmm_helpers cmm cmmgen cmmgen_state coloring comballoc
@@ -191,7 +194,7 @@
 (executable
  (name optmain)
  (modes byte)
- (flags (:standard -principal -nostdlib))
+ (flags (:standard -principal -nostdlib -ccopt -Iruntime))
  (libraries ocamloptcomp ocamlmiddleend ocamlcommon runtime stdlib)
  (modules optmain))
 

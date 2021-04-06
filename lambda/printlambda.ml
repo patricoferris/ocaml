@@ -151,10 +151,14 @@ let primitive ppf = function
   | Pignore -> fprintf ppf "ignore"
   | Pgetglobal id -> fprintf ppf "global %a" Ident.print id
   | Psetglobal id -> fprintf ppf "setglobal %a" Ident.print id
-  | Pmakeblock(tag, Immutable, shape) ->
-      fprintf ppf "makeblock %i%a" tag block_shape shape
-  | Pmakeblock(tag, Mutable, shape) ->
-      fprintf ppf "makemutable %i%a" tag block_shape shape
+  | Pmakeblock(tag, mut, shape, mode) ->
+    let kind =
+      match mut, mode with
+      | Immutable, Alloc_heap -> "block"
+      | Mutable, Alloc_heap -> "mutable"
+      | Immutable, Alloc_local -> "localblock"
+      | Mutable, Alloc_local -> "localmutable" in
+    fprintf ppf "make%s %i%a" kind tag block_shape shape
   | Pfield(n, ptr, mut) ->
       let instr =
         match ptr, mut with
@@ -358,6 +362,7 @@ let primitive ppf = function
   | Patomic_fetch_add -> fprintf ppf "atomic_fetch_add"
   | Popaque -> fprintf ppf "opaque"
   | Pdls_get -> fprintf ppf "dls_get"
+  | Pendregion -> fprintf ppf "endregion"
 
 let name_of_primitive = function
   | Pbytes_of_string -> "Pbytes_of_string"
@@ -473,6 +478,7 @@ let name_of_primitive = function
   | Pperform -> "Pperform"
   | Preperform -> "Preperform"
   | Pdls_get -> "Pdls_get"
+  | Pendregion -> "Pendregion"
 
 let function_attribute ppf t =
   if t.is_a_functor then
@@ -695,6 +701,8 @@ let rec lam ppf = function
       end
   | Lifused(id, expr) ->
       fprintf ppf "@[<2>(ifused@ %a@ %a)@]" Ident.print id lam expr
+  | Lbeginregion (id, expr) ->
+      fprintf ppf "@[<2>(region@ %a@ %a)@]" Ident.print id lam expr
 
 and sequence ppf = function
   | Lsequence(l1, l2) ->

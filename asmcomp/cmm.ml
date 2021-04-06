@@ -154,7 +154,7 @@ and operation =
       { memory_chunk: memory_chunk
       ; mutability: Asttypes.mutable_flag
       ; is_atomic: bool }
-  | Calloc
+  | Calloc of Lambda.alloc_mode
   | Cstore of memory_chunk * Lambda.initialization_or_assignment
   | Caddi | Csubi | Cmuli | Cmulhi | Cdivi | Cmodi
   | Cand | Cor | Cxor | Clsl | Clsr | Casr
@@ -169,6 +169,8 @@ and operation =
   | Ccheckbound
   | Copaque
   | Cdls_get
+  | Cbeginregion
+  | Cendregion
 
 type expression =
     Cconst_int of int * Debuginfo.t
