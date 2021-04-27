@@ -697,7 +697,6 @@ let newty3 ~level ~scope desc  =
 let newty2 ~level desc =
   newty3 ~level ~scope:Ident.lowest_scope desc
 
-type alloc_mode = Alloc_heap | Alloc_local (* FIXME *)
 
                   (**********************************)
                   (*  Utilities for backtracking    *)
@@ -862,3 +861,20 @@ let undo_compress (changes, _old) =
             Transient_expr.set_desc ty desc; r := !next
         | _ -> ())
         log
+
+type alloc_mode = Alloc_heap | Alloc_local
+
+module Alloc_mode = struct
+  type t = alloc_mode = Alloc_heap | Alloc_local
+
+  let min_mode = Alloc_heap
+  let is_min = function Alloc_heap -> true | _ -> false
+
+  let max_mode = Alloc_local
+  let is_max = function Alloc_local -> true | _ -> false
+
+  let constrain a b =
+    match a, b with
+    | Alloc_heap, _ | _, Alloc_local -> Ok ()
+    | Alloc_local, Alloc_heap -> Error ()
+end

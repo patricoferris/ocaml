@@ -52,6 +52,7 @@ type type_expected = private {
 type pattern_variable =
   {
     pv_id: Ident.t;
+    pv_mode: Alloc_mode.t;
     pv_type: type_expr;
     pv_loc: Location.t;
     pv_as_var: bool;

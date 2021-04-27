@@ -310,7 +310,7 @@ and expression i ppf x =
     line i ppf "extra\n";
     List.iter (expression_extra (i+1) ppf) extra;
   end;
-  if x.exp_mode <> Types.Alloc_heap then
+  if x.exp_mode <> Types.Alloc_mode.Alloc_heap then
     line i ppf "alloc_mode %s\n"
       (match x.exp_mode with Alloc_heap -> "heap" | Alloc_local -> "local");
   match x.exp_desc with

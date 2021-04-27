@@ -440,6 +440,7 @@ let finalize_variants p =
 type pattern_variable =
   {
     pv_id: Ident.t;
+    pv_mode: Alloc_mode.t;
     pv_type: type_expr;
     pv_loc: Location.t;
     pv_as_var: bool;
@@ -470,7 +471,7 @@ let maybe_add_pattern_variables_ghost loc_let env pv =
        end
     ) pv env
 
-let enter_variable ?(is_module=false) ?(is_as_variable=false) loc name ty
+let enter_variable ?(is_module=false) ?(is_as_variable=false) loc name mode ty
     attrs =
   if List.exists (fun {pv_id; _} -> Ident.name pv_id = name.txt)
       !pattern_variables
@@ -478,6 +479,7 @@ let enter_variable ?(is_module=false) ?(is_as_variable=false) loc name ty
   let id = Ident.create_local name.txt in
   pattern_variables :=
     {pv_id = id;
+     pv_mode = mode;
      pv_type = ty;
      pv_loc = loc;
      pv_as_var = is_as_variable;
@@ -1602,23 +1604,23 @@ let as_comp_pattern
 let rec type_pat
   : type k r . k pattern_category ->
       no_existentials: existential_restriction option ->
-      mode: pattern_checking_mode -> env: Env.t ref -> Parsetree.pattern ->
+      mode: pattern_checking_mode -> alloc_mode:_ -> env: Env.t ref -> Parsetree.pattern ->
       type_expr -> (k general_pattern -> r) -> r
-  = fun category ~no_existentials ~mode
+  = fun category ~no_existentials ~mode ~alloc_mode
         ~env sp expected_ty k ->
   Builtin_attributes.warning_scope sp.ppat_attributes
     (fun () ->
        type_pat_aux category ~no_existentials ~mode
-         ~env sp expected_ty k
+         ~alloc_mode ~env sp expected_ty k
     )
 
 and type_pat_aux
   : type k r . k pattern_category -> no_existentials:_ -> mode:_ ->
-         env:_ -> _ -> _ -> (k general_pattern -> r) -> r
+         alloc_mode:_ -> env:_ -> _ -> _ -> (k general_pattern -> r) -> r
   = fun category ~no_existentials ~mode
-      ~env sp expected_ty k ->
+      ~alloc_mode ~env sp expected_ty k ->
   let type_pat category ?(mode=mode) ?(env=env) =
-    type_pat category ~no_existentials ~mode ~env
+    type_pat category ~no_existentials ~mode ~alloc_mode ~env
   in
   let loc = sp.ppat_loc in
   let refine =
@@ -1680,7 +1682,7 @@ and type_pat_aux
         if name.txt = "*extension*" then
           Ident.create_local name.txt
         else
-          enter_variable loc name ty sp.ppat_attributes
+          enter_variable loc name alloc_mode ty sp.ppat_attributes
       in
       rvp k {
         pat_desc = Tpat_var (id, name);
@@ -1702,7 +1704,8 @@ and type_pat_aux
             pat_env = !env }
       | Some s ->
           let v = { name with txt = s } in
-          let id = enter_variable loc v t ~is_module:true sp.ppat_attributes in
+          let id = enter_variable loc v alloc_mode
+                     t ~is_module:true sp.ppat_attributes in
           rvp k {
             pat_desc = Tpat_var (id, v);
             pat_loc = sp.ppat_loc;
@@ -1718,7 +1721,7 @@ and type_pat_aux
       assert construction_not_used_in_counterexamples;
       let cty, ty, ty' =
         solve_Ppat_poly_constraint ~refine env lloc sty expected_ty in
-      let id = enter_variable lloc name ty' attrs in
+      let id = enter_variable lloc name alloc_mode ty' attrs in
       rvp k { pat_desc = Tpat_var (id, name);
               pat_loc = lloc;
               pat_extra = [Tpat_constraint cty, loc, sp.ppat_attributes];
@@ -1730,7 +1733,8 @@ and type_pat_aux
       type_pat Value sq expected_ty (fun q ->
         let ty_var = solve_Ppat_alias ~refine env q in
         let id =
-          enter_variable ~is_as_variable:true loc name ty_var sp.ppat_attributes
+          enter_variable ~is_as_variable:true loc name alloc_mode
+            ty_var sp.ppat_attributes
         in
         rvp k {
           pat_desc = Tpat_alias(q, id, name);
@@ -2097,10 +2101,10 @@ and type_pat_aux
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
 
 let type_pat category ?no_existentials ?(mode=Normal)
-    ?(lev=get_current_level()) env sp expected_ty =
+    ?(lev=get_current_level()) ~alloc_mode env sp expected_ty =
   Misc.protect_refs [Misc.R (gadt_equations_level, Some lev)] (fun () ->
         type_pat category ~no_existentials ~mode
-          ~env sp expected_ty (fun x -> x)
+          ~alloc_mode ~env sp expected_ty (fun x -> x)
     )
 
 (* this function is passed to Partial.parmatch
@@ -2117,7 +2121,8 @@ let partial_pred ~lev ~splitting_mode ?(explode=0)
       } in
   try
     reset_pattern true;
-    let typed_p = type_pat Value ~lev ~mode env p expected_ty in
+    let typed_p =
+      type_pat Value ~lev ~mode ~alloc_mode:Alloc_heap env p expected_ty in
     set_state state env;
     (* types are invalidated but we don't need them here *)
     Some typed_p
@@ -2148,9 +2153,9 @@ let iter_pattern_variables_type f : pattern_variable list -> unit =
 
 let add_pattern_variables ?check ?check_as env pv =
   List.fold_right
-    (fun {pv_id; pv_type; pv_loc; pv_as_var; pv_attributes} env ->
+    (fun {pv_id; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes} env ->
        let check = if pv_as_var then check_as else check in
-       Env.add_value ?check pv_id
+       Env.add_value ?check ~mode:pv_mode pv_id
          {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
           val_attributes = pv_attributes;
           val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
@@ -2158,23 +2163,28 @@ let add_pattern_variables ?check ?check_as env pv =
     )
     pv env
 
-let type_pattern category ~lev env spat expected_ty =
+let type_pattern category ~lev ~alloc_mode env spat expected_ty =
   reset_pattern true;
   let new_env = ref env in
-  let pat = type_pat category ~lev new_env spat expected_ty in
+  let pat = type_pat category ~lev ~alloc_mode new_env spat expected_ty in
   let pvs = get_ref pattern_variables in
   let unpacks = get_ref module_variables in
   (pat, !new_env, get_ref pattern_force, pvs, unpacks)
 
 let type_pattern_list
-    category no_existentials env spatl expected_tys allow
+    category no_existentials env mode spatl expected_tys allow
   =
   reset_pattern allow;
   let new_env = ref env in
   let type_pat (attrs, pat) ty =
+    let mode : Alloc_mode.t =
+      if List.exists (fun a -> a.attr_name.txt = "stack") attrs
+      then Alloc_local
+      else mode in
     Builtin_attributes.warning_scope ~ppwarning:false attrs
       (fun () ->
-         type_pat category ~no_existentials new_env pat ty
+         mode,
+         type_pat category ~no_existentials ~alloc_mode:mode new_env pat ty
       )
   in
   let patl = List.map2 type_pat spatl expected_tys in
@@ -2192,7 +2202,8 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
   reset_pattern false;
   let nv = newvar () in
   let pat =
-    type_pat Value ~no_existentials:In_class_args (ref val_env) spat nv in
+    type_pat Value ~no_existentials:In_class_args ~alloc_mode:Alloc_heap 
+      (ref val_env) spat nv in
   if has_variants pat then begin
     Parmatch.pressure_variants val_env [pat];
     finalize_variants pat;
@@ -2239,7 +2250,7 @@ let type_self_pattern env spat =
   reset_pattern false;
   let nv = newvar() in
   let pat =
-    type_pat Value ~no_existentials:In_self_pattern (ref env) spat nv in
+    type_pat Value ~no_existentials:In_self_pattern ~alloc_mode:Alloc_heap (ref env) spat nv in
   List.iter (fun f -> f()) (get_ref pattern_force);
   let pv = !pattern_variables in
   pattern_variables := [];
@@ -2836,7 +2847,7 @@ let with_explanation explanation f =
         let err = Expr_type_clash(err', Some explanation, exp') in
         raise (Error (loc', env', err))
 
-let rec type_exp ?recarg env (mode : Types.alloc_mode) sexp =
+let rec type_exp ?recarg env (mode : Alloc_mode.t) sexp =
   (* We now delegate everything to type_expect *)
   type_expect ?recarg env mode sexp (mk_expected (newvar ()))
 
@@ -2872,7 +2883,7 @@ and type_expect_
   in
   match sexp.pexp_desc with
   | Pexp_ident lid ->
-      let path, desc = type_ident env ~recarg lid in
+      let path, desc = type_ident env mode ~recarg lid in
       let exp_desc =
         match desc.val_kind with
         | Val_ivar (_, cl_num) ->
@@ -2894,7 +2905,7 @@ and type_expect_
       in
       rue {
         exp_desc; exp_loc = loc; exp_extra = [];
-        exp_type = instance desc.val_type; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = instance desc.val_type; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_constant(Pconst_string (str, _, _) as cst) -> (
@@ -2921,7 +2932,7 @@ and type_expect_
       rue {
         exp_desc = Texp_constant cst;
         exp_loc = loc; exp_extra = [];
-        exp_type = instance Predef.type_string; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = instance Predef.type_string; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   )
@@ -2930,7 +2941,7 @@ and type_expect_
       rue {
         exp_desc = Texp_constant cst;
         exp_loc = loc; exp_extra = [];
-        exp_type = type_constant cst; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = type_constant cst; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_let(Nonrecursive,
@@ -3017,7 +3028,7 @@ and type_expect_
       let type_sfunct sfunct =
         begin_def (); (* one more level for non-returning functions *)
         if !Clflags.principal then begin_def ();
-        let funct = type_exp env mode sfunct in
+        let funct = type_exp env Alloc_local sfunct in (* FIXME mode = Alloc_local *)
         if !Clflags.principal then begin
           end_def ();
           generalize_structure funct.exp_type
@@ -3067,7 +3078,7 @@ and type_expect_
       if maybe_expansive arg then lower_contravariant env arg.exp_type;
       generalize arg.exp_type;
       let cases, partial =
-        type_cases Computation env mode
+        type_cases Computation env mode mode
           arg.exp_type ty_expected_explained true loc caselist in
       re {
         exp_desc = Texp_match(arg, cases, partial);
@@ -3079,7 +3090,7 @@ and type_expect_
       (* FIXME mode *)
       let body = type_expect env mode sbody ty_expected_explained in
       let cases, _ =
-        type_cases Value env mode
+        type_cases Value env mode mode
           Predef.type_exn ty_expected_explained false loc caselist in
       re {
         exp_desc = Texp_try(body, cases);
@@ -3306,6 +3317,7 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_setfield(srecord, lid, snewval) ->
+      let mode = Alloc_heap in
       let (record, label, expected_type) =
         type_label_access env mode srecord Env.Mutation lid in
       let ty_record =
@@ -3319,7 +3331,7 @@ and type_expect_
         exp_desc = Texp_setfield(record, label_loc, label, newval);
         exp_loc = loc; exp_extra = [];
         exp_type = instance Predef.type_unit;
-        exp_mode = mode; (* FIXME mode *)
+        exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_array(sargl) ->
@@ -3336,7 +3348,7 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_ifthenelse(scond, sifso, sifnot) ->
-      let cond = type_expect env Alloc_heap scond (* FIXME mode imm *)
+      let cond = type_expect env Alloc_local scond
           (mk_expected ~explanation:If_conditional Predef.type_bool) in
       begin match sifnot with
         None ->
@@ -3371,19 +3383,19 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_while(scond, sbody) ->
-      let cond = type_expect env Alloc_heap scond
+      let cond = type_expect env Alloc_local scond
           (mk_expected ~explanation:While_loop_conditional Predef.type_bool) in
       let body = type_statement ~explanation:While_loop_body env sbody in
       rue {
         exp_desc = Texp_while(cond, body);
         exp_loc = loc; exp_extra = [];
-        exp_type = instance Predef.type_unit; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = instance Predef.type_unit; exp_mode = mode; (*FIXME*)
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_for(param, slow, shigh, dir, sbody) ->
-      let low = type_expect env Alloc_heap slow
+      let low = type_expect env Alloc_local slow
           (mk_expected ~explanation:For_loop_start_index Predef.type_int) in
-      let high = type_expect env Alloc_heap shigh
+      let high = type_expect env Alloc_local shigh
           (mk_expected ~explanation:For_loop_stop_index Predef.type_int) in
       let id, new_env =
         match param.ppat_desc with
@@ -3404,7 +3416,7 @@ and type_expect_
       rue {
         exp_desc = Texp_for(id, param, low, high, dir, body);
         exp_loc = loc; exp_extra = [];
-        exp_type = instance Predef.type_unit; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = instance Predef.type_unit; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_constraint (sarg, sty) ->
@@ -4012,6 +4024,7 @@ and type_expect_
         exp_env = env;
       }
   | Pexp_letop{ let_ = slet; ands = sands; body = sbody } ->
+      (* FIXME: allocation modes for binding operators *)
       let rec loop spat_acc ty_acc sands =
         match sands with
         | [] -> spat_acc, ty_acc
@@ -4051,7 +4064,7 @@ and type_expect_
       let exp, ands = type_andops env mode slet.pbop_exp sands ty_andops in
       let scase = Ast_helper.Exp.case spat_params sbody in
       let cases, partial =
-        type_cases Value env mode
+        type_cases Value env mode mode
           ty_params (mk_expected ty_func_result) true loc [scase]
       in
       let body =
@@ -4112,8 +4125,8 @@ and type_expect_
            exp_attributes = sexp.pexp_attributes;
            exp_env = env }
 
-and type_ident env ?(recarg=Rejected) lid =
-  let (path, desc) = Env.lookup_value ~loc:lid.loc lid.txt env in
+and type_ident env mode ?(recarg=Rejected) lid =
+  let (path, desc) = Env.lookup_value ~loc:lid.loc lid.txt mode env in
   let is_recarg =
     match get_desc desc.val_type with
     | Tconstr(p, _, _) -> Path.is_constructor_typath p
@@ -4133,7 +4146,7 @@ and type_ident env ?(recarg=Rejected) lid =
 and type_binding_op_ident env s =
   let loc = s.loc in
   let lid = Location.mkloc (Longident.Lident s.txt) loc in
-  let path, desc = type_ident env lid in
+  let path, desc = type_ident env Alloc_heap lid in
   let path =
     match desc.val_kind with
     | Val_ivar _ ->
@@ -4187,9 +4200,12 @@ and type_function ?(in_function : (Location.t * type_expr) option)
     generalize_structure ty_arg;
     generalize_structure ty_res
   end;
-  (* FIXME wrong mode *)
+  let env =
+    match in_function with
+    | Some _ -> env
+    | None -> Env.add_lock Alloc_heap env in
   let cases, partial =
-    type_cases Value ~in_function:(loc_fun,ty_fun) env Alloc_heap
+    type_cases Value ~in_function:(loc_fun,ty_fun) env Alloc_heap Alloc_heap
       ty_arg (mk_expected ty_res) true loc caselist in
   let not_nolabel_function ty =
     let ls, tvar = list_labels env ty in
@@ -4655,7 +4671,7 @@ and type_argument ?explanation ?recarg env mode sarg ty_expected' ty_expected =
       unify_exp env texp ty_expected;
       texp
 
-and type_application env mode funct sargs =
+and type_application env (mode : Alloc_mode.t) funct sargs =
   (* funct.exp_type may be generic *)
   let result_type omitted ty_fun =
     List.fold_left
@@ -4703,7 +4719,7 @@ and type_application env mode funct sargs =
     in
     let arg () =
       (* FIXME arg mode *)
-      let arg = type_expect env mode sarg (mk_expected ty_arg) in
+      let arg = type_expect env Alloc_heap sarg (mk_expected ty_arg) in
       if is_optional lbl then
         unify_exp env arg (type_option(newvar()));
       arg
@@ -4940,7 +4956,7 @@ and type_construct env mode loc lid sarg ty_expected_explained attrs =
 
 and type_statement ?explanation env sexp =
   begin_def();
-  let exp = type_exp env Alloc_heap sexp in (* FIXME mode = Alloc_local *)
+  let exp = type_exp env Alloc_local sexp in
   end_def();
   let ty = expand_head env exp.exp_type and tv = newvar() in
   if is_Tvar ty && get_level ty > get_level tv then
@@ -5019,9 +5035,9 @@ and type_unpacks ?(in_function : (Location.t * type_expr) option)
 (* Typing of match cases *)
 and type_cases
     : type k . k pattern_category ->
-           ?in_function:_ -> _ -> _ -> _ -> _ -> _ -> _ -> Parsetree.case list ->
+           ?in_function:_ -> _ -> _ -> _ -> _ -> _ -> _ -> _ -> Parsetree.case list ->
            k case list * partial
-  = fun category ?in_function env mode
+  = fun category ?in_function env pmode emode
         ty_arg ty_res_explained partial_flag loc caselist ->
   (* ty_arg is _fully_ generalized *)
   let { ty = ty_res; explanation } = ty_res_explained in
@@ -5066,7 +5082,7 @@ and type_cases
         end_def ();
         generalize_structure ty_arg;
         let (pat, ext_env, force, pvs, unpacks) =
-          type_pattern category ~lev env pc_lhs ty_arg
+          type_pattern category ~lev ~alloc_mode:pmode env pc_lhs ty_arg
         in
         pattern_force := force @ !pattern_force;
         let pat =
@@ -5158,11 +5174,11 @@ and type_cases
           | None -> None
           | Some scond ->
               Some
-                (type_unpacks ext_env mode unpacks scond
+                (type_unpacks ext_env Alloc_local unpacks scond
                    (mk_expected ~explanation:When_guard Predef.type_bool))
         in
         let exp =
-          type_unpacks ?in_function ext_env mode
+          type_unpacks ?in_function ext_env emode
             unpacks pc_rhs (mk_expected ?explanation ty_expected)
         in
         {
@@ -5255,13 +5271,13 @@ and type_let
       spat_sexp_list in
   let nvs = List.map (fun _ -> newvar ()) spatl in
   let (pat_list, new_env, force, pvs, unpacks) =
-    type_pattern_list Value existential_context env spatl nvs allow in
+    type_pattern_list Value existential_context env mode spatl nvs allow in
   let attrs_list = List.map fst spatl in
   let is_recursive = (rec_flag = Recursive) in
   (* If recursive, first unify with an approximation of the expression *)
   if is_recursive then
     List.iter2
-      (fun pat binding ->
+      (fun (_, pat) binding ->
         let pat =
           match get_desc pat.pat_type with
           | Tpoly (ty, tl) ->
@@ -5272,7 +5288,7 @@ and type_let
       pat_list spat_sexp_list;
   (* Polymorphic variant processing *)
   List.iter
-    (fun pat ->
+    (fun (_, pat) ->
       if has_variants pat then begin
         Parmatch.pressure_variants env [pat];
         finalize_variants pat
@@ -5283,9 +5299,9 @@ and type_let
     if !Clflags.principal then begin
       end_def ();
       iter_pattern_variables_type generalize_structure pvs;
-      List.map (fun pat ->
+      List.map (fun (m, pat) ->
         generalize_structure pat.pat_type;
-        {pat with pat_type = instance pat.pat_type}
+        m, {pat with pat_type = instance pat.pat_type}
       ) pat_list
     end else
       pat_list
@@ -5327,7 +5343,7 @@ and type_let
            || (is_recursive && (Warnings.is_active Warnings.Unused_rec_flag))))
       attrs_list
   in
-  let pat_slot_list =
+  let mode_pat_slot_list =
     (* Algorithm to detect unused declarations in recursive bindings:
        - During type checking of the definitions, we capture the 'value_used'
          events on the bound identifiers and record them in a slot corresponding
@@ -5345,9 +5361,9 @@ and type_let
        warning is 26, not 27.
      *)
     List.map2
-      (fun attrs pat ->
+      (fun attrs (mode, pat) ->
          Builtin_attributes.warning_scope ~ppwarning:false attrs (fun () ->
-           if not warn_about_unused_bindings then pat, None
+           if not warn_about_unused_bindings then mode, pat, None
            else
              let some_used = ref false in
              (* has one of the identifier of this pattern been used? *)
@@ -5379,14 +5395,14 @@ and type_let
                     )
                )
                (Typedtree.pat_bound_idents pat);
-             pat, Some slot
+             mode, pat, Some slot
          ))
       attrs_list
       pat_list
   in
   let exp_list =
     List.map2
-      (fun {pvb_expr=sexp; pvb_attributes; _} (pat, slot) ->
+      (fun {pvb_expr=sexp; pvb_attributes; _} (mode, pat, slot) ->
         if is_recursive then current_slot := slot;
         (* FIXME: unsound, for testing *)
         let mode =
@@ -5417,7 +5433,7 @@ and type_let
                     type_expect exp_env mode sexp (mk_expected pat.pat_type))
             in
             exp, None)
-      spat_sexp_list pat_slot_list in
+      spat_sexp_list mode_pat_slot_list in
   current_slot := None;
   if is_recursive && not !rec_needed then begin
     let {pvb_pat; pvb_attributes} = List.hd spat_sexp_list in
@@ -5428,7 +5444,7 @@ and type_let
       )
   end;
   List.iter2
-    (fun pat (attrs, exp) ->
+    (fun (_,pat) (attrs, exp) ->
        Builtin_attributes.warning_scope ~ppwarning:false attrs
          (fun () ->
             ignore(check_partial env pat.pat_type pat.pat_loc
@@ -5440,13 +5456,13 @@ and type_let
   let pvs = List.map (fun pv -> { pv with pv_type = instance pv.pv_type}) pvs in
   end_def();
   List.iter2
-    (fun pat (exp, _) ->
+    (fun (_,pat) (exp, _) ->
        if maybe_expansive exp then
          lower_contravariant env pat.pat_type)
     pat_list exp_list;
   iter_pattern_variables_type generalize pvs;
   List.iter2
-    (fun pat (exp, vars) ->
+    (fun (_,pat) (exp, vars) ->
        match vars with
        | None ->
          (* We generalize expressions even if they are not bound to a variable
@@ -5467,7 +5483,8 @@ and type_let
   let l = List.combine pat_list exp_list in
   let l =
     List.map2
-      (fun (p, (e, _)) pvb ->
+      (fun ((_,p), (e, _)) pvb ->
+        (* FIXME: maybe we want modes in the vb? *)
         {vb_pat=p; vb_expr=e; vb_attributes=pvb.pvb_attributes;
          vb_loc=pvb.pvb_loc;
         })
@@ -5565,7 +5582,7 @@ let type_expression env sexp =
     Pexp_ident lid ->
       let loc = sexp.pexp_loc in
       (* Special case for keeping type variables when looking-up a variable *)
-      let (_path, desc) = Env.lookup_value ~use:false ~loc lid.txt env in
+      let (_path, desc) = Env.lookup_value ~use:false ~loc lid.txt Alloc_heap env in
       {exp with exp_type = desc.val_type}
   | _ -> exp
 

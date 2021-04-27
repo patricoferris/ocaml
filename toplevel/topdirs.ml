@@ -405,7 +405,7 @@ let reg_show_prim name to_sig doc =
 let () =
   reg_show_prim "show_val"
     (fun env loc id lid ->
-       let _path, desc = Env.lookup_value ~loc lid env in
+       let _path, desc = Env.lookup_value ~loc lid Alloc_heap env in
        [ Sig_value (id, desc, Exported) ]
     )
     "Print the signature of the corresponding value."
