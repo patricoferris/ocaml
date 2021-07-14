@@ -418,6 +418,7 @@ let mk_env f : Emitenv.per_function_env =
     jumptables = [];
     float_literals = [];
     int_literals = [];
+    local_realloc_sites = [];
     offset_literals = [];
     gotrel_literals = [];
     symbol_literals = [];

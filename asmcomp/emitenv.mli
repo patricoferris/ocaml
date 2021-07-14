@@ -65,6 +65,10 @@ type symbol_literal =
     lbl : label;
   }
 
+  type local_realloc_call =
+  { lr_lbl: label;
+    lr_return_lbl: label; }
+
 (* Environment for emitting a function *)
 type per_function_env = {
   f : Linear.fundecl;
@@ -79,6 +83,7 @@ type per_function_env = {
      we concatenate all jumptables and emit them at the end of the function. *)
   mutable jumptables_lbl : label option;               (* used only in power *)
   mutable jumptables : label list; (* in reverse order *)
+  mutable local_realloc_sites : local_realloc_call list;
 
   (* pending literals *)
   mutable float_literals : float_literal list;   (* in all except amd64,i386 *)

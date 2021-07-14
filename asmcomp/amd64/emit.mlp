@@ -266,6 +266,16 @@ let emit_call_gc gc =
   def_label gc.gc_frame_lbl;
   I.jmp (label gc.gc_return_lbl)
 
+let emit_local_realloc lr =
+  def_label lr.lr_lbl;
+  emit_call "caml_call_local_realloc";
+  I.jmp (label lr.lr_return_lbl)
+
+(* Record calls to caml_ml_array_bound_error.
+   In -g mode we maintain one call to
+   caml_ml_array_bound_error per bound check site.  Without -g, we can share
+   a single call. *)
+
 let bound_error_label env dbg =
   if !Clflags.debug then begin
     let lbl_bound_error = new_label() in
@@ -670,12 +680,15 @@ let emit_instr env fallthrough i =
       (* FIXME: before or after check? Calling conv w/ realloc *)
       I.mov r (domain_field Domainstate.Domain_local_sp);
       I.cmp (domain_field Domainstate.Domain_local_limit) r;
-      let lbl_ok = new_label () in
-      I.j GE (label lbl_ok);
-      emit_call "caml_call_local_realloc";
-      def_label lbl_ok;
+      let lbl_call = new_label () in
+      I.j L (label lbl_call);
+      let lbl_after_alloc = new_label () in
+      def_label lbl_after_alloc;
       I.add (domain_field Domainstate.Domain_local_top) r;
       I.add (int 8) r;
+      env.local_realloc_sites <-
+        { lr_lbl = lbl_call;
+          lr_return_lbl = lbl_after_alloc } :: env.local_realloc_sites
   | Lop(Iintop(Icomp cmp)) ->
       I.cmp (arg i 1) (arg i 0);
       I.set (cond cmp) al;
@@ -934,6 +947,7 @@ let fundecl fundecl =
   end;
   emit_all env true fundecl.fun_body;
   List.iter emit_call_gc env.call_gc_sites;
+  List.iter emit_local_realloc env.local_realloc_sites;
   emit_call_bound_errors env;
   begin match !handle_overflow with
   | None -> ()
