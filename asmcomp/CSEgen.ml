@@ -237,6 +237,7 @@ method class_of_operation op =
   | Ifloatofint | Iintoffloat -> Op_pure
   | Ispecific _ -> Op_other
   | Idls_get -> Op_load Mutable
+  | Ibeginregion | Iendregion -> Op_other
 
 (* Operations that are so cheap that it isn't worth factoring them. *)
 method is_cheap_operation op =

@@ -152,6 +152,8 @@ let operation op arg ppf res =
   | Ifloatofint -> fprintf ppf "floatofint %a" reg arg.(0)
   | Iintoffloat -> fprintf ppf "intoffloat %a" reg arg.(0)
   | Iopaque -> fprintf ppf "opaque %a" reg arg.(0)
+  | Ibeginregion -> fprintf ppf "beginregion"
+  | Iendregion -> fprintf ppf "endregion %a" reg arg.(0)
   | Ispecific op ->
       Arch.print_specific_operation reg op ppf arg
   | Idls_get -> fprintf ppf "dls_get"

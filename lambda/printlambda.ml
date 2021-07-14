@@ -362,7 +362,6 @@ let primitive ppf = function
   | Patomic_fetch_add -> fprintf ppf "atomic_fetch_add"
   | Popaque -> fprintf ppf "opaque"
   | Pdls_get -> fprintf ppf "dls_get"
-  | Pendregion -> fprintf ppf "endregion"
 
 let name_of_primitive = function
   | Pbytes_of_string -> "Pbytes_of_string"
@@ -478,7 +477,6 @@ let name_of_primitive = function
   | Pperform -> "Pperform"
   | Preperform -> "Preperform"
   | Pdls_get -> "Pdls_get"
-  | Pendregion -> "Pendregion"
 
 let function_attribute ppf t =
   if t.is_a_functor then
@@ -560,27 +558,30 @@ let rec lam ppf = function
             fprintf ppf ")" in
       fprintf ppf "@[<2>(function%a@ %a%a%a)@]" pr_params params
         function_attribute attr return_kind return lam body
-  | Llet(_, k, id, arg, body)
-  | Lmutlet(k, id, arg, body) as l ->
-      let let_kind = begin function
-        | Llet(str,_,_,_,_) ->
-           begin match str with
-             Alias -> "a" | Strict -> "" | StrictOpt -> "o"
-           end
-        | Lmutlet _ -> "mut"
-        | _ -> assert false
-        end
+  | (Llet _ | Lregion(Llet _) | Lmutlet _) as expr ->
+      let kind = function
+          Alias -> "a" | Strict -> "" | StrictOpt -> "o"
       in
-      let rec letbody = function
+      let get_str = function
+       | Llet(str, _, _, _, _)
+       | Lregion(Llet(str, _, _, _, _)) -> str
+       | Lmutlet _ -> Strict (* TODO: something *)
+       | _ -> assert false
+      in
+      let rec letbody ~sp = function
         | Llet(_, k, id, arg, body)
-        | Lmutlet(k, id, arg, body) as l ->
-           fprintf ppf "@ @[<2>%a =%s%a@ %a@]"
-             Ident.print id (let_kind l) value_kind k lam arg;
-           letbody body
+        | Lmutlet(k, id, arg, body)
+        | Lregion(Llet(_, k, id, arg, body)) as expr ->
+            let str = get_str expr in
+            if sp then fprintf ppf "@ ";
+            let reg = match expr with Lregion _ -> true | _ -> false in
+            fprintf ppf "@[<2>%s%a =%s%a@ %a@]"
+              (if reg then "region " else "")
+              Ident.print id (kind str) value_kind k lam arg;
+            letbody ~sp:true body
         | expr -> expr in
-      fprintf ppf "@[<2>(let@ @[<hv 1>(@[<2>%a =%s%a@ %a@]"
-        Ident.print id (let_kind l) value_kind k lam arg;
-      let expr = letbody body in
+      fprintf ppf "@[<2>(let@ @[<hv 1>(";
+      let expr = letbody ~sp:false expr in
       fprintf ppf ")@]@ %a)@]" lam expr
   | Lletrec(id_arg_list, body) ->
       let bindings ppf id_arg_list =
@@ -701,8 +702,8 @@ let rec lam ppf = function
       end
   | Lifused(id, expr) ->
       fprintf ppf "@[<2>(ifused@ %a@ %a)@]" Ident.print id lam expr
-  | Lbeginregion (id, expr) ->
-      fprintf ppf "@[<2>(region@ %a@ %a)@]" Ident.print id lam expr
+  | Lregion expr ->
+      fprintf ppf "@[<2>(region@ %a)@]" lam expr
 
 and sequence ppf = function
   | Lsequence(l1, l2) ->

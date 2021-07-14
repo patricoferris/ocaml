@@ -160,8 +160,6 @@ let operation d = function
   | Ccheckbound -> "checkbound" ^ location d
   | Copaque -> "opaque"
   | Cdls_get -> "dls_get"
-  | Cbeginregion -> "beginregion" ^ location d
-  | Cendregion -> "endregion" ^ location d
 
 let rec expr ppf = function
   | Cconst_int (n, _dbg) -> fprintf ppf "%i" n
@@ -271,6 +269,8 @@ let rec expr ppf = function
   | Ctrywith(e1, id, e2, _dbg) ->
       fprintf ppf "@[<2>(try@ %a@;<1 -2>with@ %a@ %a)@]"
              sequence e1 VP.print id sequence e2
+  | Cregion e ->
+      fprintf ppf "@[<2>(region@ %a)@]" sequence e
 
 and sequence ppf = function
   | Csequence(e1, e2) -> fprintf ppf "%a@ %a" sequence e1 sequence e2

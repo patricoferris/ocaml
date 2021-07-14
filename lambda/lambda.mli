@@ -163,10 +163,7 @@ type primitive =
   | Patomic_fetch_add
   (* Inhibition of optimisation *)
   | Popaque
-  (* Fetching domain-local state *)
   | Pdls_get
-  (* Freeing of locally-allocated data *)
-  | Pendregion
 
 and integer_comparison =
     Ceq | Cne | Clt | Cgt | Cle | Cge
@@ -310,7 +307,7 @@ type lambda =
   | Lsend of meth_kind * lambda * lambda * lambda list * scoped_location
   | Levent of lambda * lambda_event
   | Lifused of Ident.t * lambda
-  | Lbeginregion of Ident.t * lambda
+  | Lregion of lambda
 
 and lfunction = private
   { kind: function_kind;

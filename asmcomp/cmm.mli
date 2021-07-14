@@ -168,8 +168,6 @@ and operation =
                    or equal to the bound. *)
   | Copaque (* Sys.opaque_identity *)
   | Cdls_get
-  | Cbeginregion
-  | Cendregion
 
 (** Every basic block should have a corresponding [Debuginfo.t] for its
     beginning. *)
@@ -201,6 +199,7 @@ and expression =
   | Cexit of int * expression list
   | Ctrywith of expression * Backend_var.With_provenance.t * expression
       * Debuginfo.t
+  | Cregion of expression
 
 type codegen_option =
   | Reduce_code_size
@@ -254,6 +253,9 @@ val map_tail: (expression -> expression) -> expression -> expression
       to all inner sub-expressions that can produce the final result.
       Same disclaimer as for [iter_shallow_tail] about the notion
       of "tail" sub-expression. *)
+
+val iter_shallow: (expression -> unit) -> expression -> unit
+  (** Apply the transformation to each immediate sub-expression. *)
 
 val map_shallow: (expression -> expression) -> expression -> expression
   (** Apply the transformation to each immediate sub-expression. *)

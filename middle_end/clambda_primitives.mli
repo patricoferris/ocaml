@@ -131,8 +131,6 @@ type primitive =
   | Popaque
   (* Fetch domain-local state *)
   | Pdls_get
-  (* Freeing of locally-allocated data *)
-  | Pendregion
 
 and integer_comparison = Lambda.integer_comparison =
     Ceq | Cne | Clt | Cgt | Cle | Cge

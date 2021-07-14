@@ -47,8 +47,6 @@ type specific_operation =
                                           extension *)
   | Izextend32                         (* 32 to 64 bit conversion with zero
                                           extension *)
-  | Iregionbegin
-  | Iregionend
 
 and float_operation =
     Ifloatadd | Ifloatsub | Ifloatmul | Ifloatdiv
@@ -136,10 +134,6 @@ let print_specific_operation printreg op ppf arg =
       fprintf ppf "sextend32 %a" printreg arg.(0)
   | Izextend32 ->
       fprintf ppf "zextend32 %a" printreg arg.(0)
-  | Iregionbegin ->
-      fprintf ppf "iregionbegin"
-  | Iregionend ->
-      fprintf ppf "iregionend %a" printreg arg.(0)
 
 (* Are we using the Windows 64-bit ABI? *)
 
