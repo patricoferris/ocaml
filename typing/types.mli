@@ -66,7 +66,7 @@ type type_desc =
   (** [Tvar (Some "a")] ==> ['a] or ['_a]
       [Tvar None]       ==> [_] *)
 
-  | Tarrow of arg_label * type_expr * type_expr * commutable
+  | Tarrow of arrow_desc * type_expr * type_expr * commutable
   (** [Tarrow (Nolabel,      e1, e2, c)] ==> [e1    -> e2]
       [Tarrow (Labelled "l", e1, e2, c)] ==> [l:e1  -> e2]
       [Tarrow (Optional "l", e1, e2, c)] ==> [?l:e1 -> e2]
@@ -131,6 +131,38 @@ type type_desc =
 
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
+
+and arrow_desc =
+  arg_label * alloc_mode * alloc_mode
+
+and alloc_mode = Alloc_heap | Alloc_local
+
+(** [  `X | `Y ]       (row_closed = true)
+    [< `X | `Y ]       (row_closed = true)
+    [> `X | `Y ]       (row_closed = false)
+    [< `X | `Y > `X ]  (row_closed = true)
+
+    type t = [> `X ] as 'a      (row_more = Tvar a)
+    type t = private [> `X ]    (row_more = Tconstr (t#row, [], ref Mnil))
+
+    And for:
+
+        let f = function `X -> `X -> | `Y -> `X
+
+    the type of "f" will be a [Tarrow] whose lhs will (basically) be:
+
+        Tvariant { row_fields = [("X", _)];
+                   row_more   =
+                     Tvariant { row_fields = [("Y", _)];
+                                row_more   =
+                                  Tvariant { row_fields = [];
+                                             row_more   = _;
+                                             _ };
+                                _ };
+                   _
+                 }
+
+*)
 
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)
@@ -724,9 +756,8 @@ val link_kind: inside:field_kind -> field_kind -> unit
 val link_commu: inside:commutable -> commutable -> unit
 val set_commu_ok: commutable -> unit
 
-type alloc_mode = Alloc_heap | Alloc_local
-
 module Alloc_mode : sig
+  (* Modes are ordered so that Alloc_heap is a submode of Alloc_local *)
   type t = alloc_mode = Alloc_heap | Alloc_local
   
   val min_mode : t
@@ -735,5 +766,7 @@ module Alloc_mode : sig
   val max_mode : t
   val is_max : t -> bool
 
-  val constrain : t -> t -> (unit, unit) result
+  val submode : t -> t -> (unit, unit) result
+
+  val join : t list -> t
 end

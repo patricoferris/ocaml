@@ -189,7 +189,7 @@ exception Bad_printing_function
 let filter_arrow ty =
   let ty = Ctype.expand_head !toplevel_env ty in
   match get_desc ty with
-  | Tarrow (lbl, l, r, _) when not (Btype.is_optional lbl) -> Some (l, r)
+  | Tarrow ((lbl,_,_), l, r, _) when not (Btype.is_optional lbl) -> Some (l, r)
   | _ -> None
 
 let rec extract_last_arrow desc =
@@ -246,8 +246,10 @@ let match_generic_printer_type desc path args printer_type =
     List.map (fun ty_var -> Ctype.newconstr printer_type [ty_var]) args in
   let ty_expected =
     List.fold_right
-      (fun ty_arg ty -> Ctype.newty (Tarrow (Asttypes.Nolabel, ty_arg, ty,
-                                             commu_var ())))
+      (fun ty_arg ty -> Ctype.newty
+         (Tarrow ((Asttypes.Nolabel,Alloc_heap,Alloc_heap),
+                  ty_arg, ty,
+                  commu_var ())))
       ty_args (Ctype.newconstr printer_type [ty_target]) in
   begin try
     Ctype.unify !toplevel_env

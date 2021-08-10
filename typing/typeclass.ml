@@ -134,17 +134,6 @@ let unbound_class =
                 (*  Some operations on class types  *)
                 (************************************)
 
-let extract_constraints cty =
-  let sign = Btype.signature_of_class_type cty in
-  (Btype.instance_vars sign,
-   Btype.methods sign,
-   Btype.concrete_methods sign)
-
-(* Record a class type *)
-let rc node =
-  Cmt_format.add_saved_type (Cmt_format.Partial_class_expr node);
-  node
-
 let update_class_signature loc env ~warn_implicit_public virt kind sign =
   let implicit_public, implicit_declared =
     Ctype.update_class_signature env sign
@@ -192,7 +181,19 @@ let rec constructor_type constr cty =
   | Cty_signature _ ->
       constr
   | Cty_arrow (l, ty, cty) ->
-      Ctype.newty (Tarrow (l, ty, constructor_type constr cty, commu_ok))
+      Ctype.newty (Tarrow ((l, Alloc_heap, Alloc_heap),
+                           ty, constructor_type constr cty, commu_ok))
+
+let extract_constraints cty =
+  let sign = Btype.signature_of_class_type cty in
+  (Btype.instance_vars sign,
+   Btype.methods sign,
+   Btype.concrete_methods sign)
+
+(* Record a class type *)
+let rc node =
+  Cmt_format.add_saved_type (Cmt_format.Partial_class_expr node);
+  node
 
                 (***********************************)
                 (*  Primitives for typing classes  *)
@@ -729,7 +730,6 @@ let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
            in
            let rev_fields = field :: rev_fields in
            { acc with rev_fields })
-
   | Pcf_method (label, priv, Cfk_concrete (override, expr)) ->
       with_attrs
         (fun () ->
@@ -819,6 +819,31 @@ let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
       let field = Attribute { attribute; loc; attributes } in
       let rev_fields = field :: rev_fields in
       { acc with rev_fields }
+(* =======
+  | Pcf_initializer expr ->
+      let expr = make_method self_loc cl_num expr in
+      let vars_local = !vars in
+      let field =
+        lazy begin
+          Ctype.raise_nongen_level ();
+          let meth_type = mk_expected (
+            Ctype.newty
+              (Tarrow ((Nolabel, Alloc_heap, Alloc_heap), self_type,
+                       Ctype.instance Predef.type_unit, Cok))
+          ) in
+          vars := vars_local;
+          let texp = type_expect met_env expr meth_type in
+          Ctype.end_def ();
+          mkcf (Tcf_initializer texp)
+        end in
+      (class_env, field::fields, concr_meths, warn_vals,
+       inher, local_meths, local_vals)
+  | Pcf_attribute x ->
+      Builtin_attributes.warning_attribute x;
+      (class_env,
+        lazy (mkcf (Tcf_attribute x)) :: fields,
+        concr_meths, warn_vals, inher, local_meths, local_vals)
+>>>>>>> d03055416 (Typechecking for local allocations (#21)) *)
   | Pcf_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
 
@@ -908,7 +933,7 @@ and class_field_second_pass cl_num sign met_env field =
            let self_type = sign.Types.csig_self in
            let meth_type =
              mk_expected
-               (Btype.newgenty (Tarrow(Nolabel, self_type, ty, commu_ok)))
+               (Btype.newgenty (Tarrow((Nolabel, Alloc_heap, Alloc_heap), self_type, ty, commu_ok)))
            in
            Ctype.raise_nongen_level ();
            let texp = type_expect met_env sdefinition meth_type in
@@ -927,7 +952,7 @@ and class_field_second_pass cl_num sign met_env field =
            let self_type = sign.Types.csig_self in
            let meth_type =
              mk_expected
-               (Ctype.newty (Tarrow (Nolabel, self_type, unit_type, commu_ok)))
+               (Ctype.newty (Tarrow ((Nolabel, Alloc_heap, Alloc_heap), self_type, unit_type, commu_ok)))
            in
            let texp = type_expect met_env sexpr meth_type in
            Ctype.end_def ();
@@ -1238,11 +1263,11 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
                   let ty' = extract_option_type val_env ty
                   and ty0' = extract_option_type val_env ty0 in
                   let arg = type_argument val_env sarg ty' ty0' in
-                  option_some val_env arg
+                  option_some val_env arg Alloc_heap
               )
             in
             let eliminate_optional_arg () =
-              Some (option_none val_env ty0 Location.none)
+              Some (option_none val_env ty0 Alloc_heap Location.none)
             in
             let remaining_sargs, arg =
               if ignore_labels then begin
@@ -1410,7 +1435,8 @@ let rec approx_declaration cl =
       let arg =
         if Btype.is_optional l then Ctype.instance var_option
         else Ctype.newvar () in
-      Ctype.newty (Tarrow (l, arg, approx_declaration cl, commu_ok))
+      Ctype.newty (Tarrow ((l, Alloc_heap, Alloc_heap),
+                           arg, approx_declaration cl, commu_ok))
   | Pcl_let (_, _, cl) ->
       approx_declaration cl
   | Pcl_constraint (cl, _) ->
@@ -1423,7 +1449,8 @@ let rec approx_description ct =
       let arg =
         if Btype.is_optional l then Ctype.instance var_option
         else Ctype.newvar () in
-      Ctype.newty (Tarrow (l, arg, approx_description ct, commu_ok))
+      Ctype.newty (Tarrow ((l, Alloc_heap, Alloc_heap),
+                           arg, approx_description ct, commu_ok))
   | _ -> Ctype.newvar ()
 
 (*******************************)

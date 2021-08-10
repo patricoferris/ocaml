@@ -130,8 +130,10 @@ val type_argument:
         Env.t -> Parsetree.expression ->
         type_expr -> type_expr -> Typedtree.expression
 
-val option_some: Env.t -> Typedtree.expression -> Typedtree.expression
-val option_none: Env.t -> type_expr -> Location.t -> Typedtree.expression
+val option_some:
+  Env.t -> Typedtree.expression -> alloc_mode -> Typedtree.expression
+val option_none:
+  Env.t -> type_expr -> alloc_mode -> Location.t -> Typedtree.expression
 val extract_option_type: Env.t -> type_expr -> type_expr
 val generalizable: int -> type_expr -> bool
 val reset_delayed_checks: unit -> unit
@@ -215,6 +217,9 @@ type error =
   | Missing_type_constraint
   | Wrong_expected_kind of wrong_kind_sort * wrong_kind_context * type_expr
   | Expr_not_a_record_type of type_expr
+  | Local_argument_escapes
+  | Local_return_value_escapes
+  | Local_value_escapes
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

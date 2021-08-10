@@ -364,7 +364,7 @@ let max_register_pressure = function
   | _ -> if fp then [| 12; 16 |] else [| 13; 16 |]
 
 
-(* Pure operations (without any side effect besides updating their result
+(* (* Pure operations (without any side effect besides updating their result
    registers). *)
 
 let op_is_pure = function
@@ -374,7 +374,7 @@ let op_is_pure = function
   | Ispecific(Ilea _|Isextend32|Izextend32) -> true
   | Ispecific _ -> false
   | Ibeginregion | Iendregion -> false
-  | _ -> true
+  | _ -> true *)
 
 (* Layout of the stack frame *)
 

@@ -487,6 +487,10 @@ let string_of_label = function
   | Labelled s -> s
   | Optional s -> "?"^s
 
+let string_of_alloc_mode = function
+  | Alloc_local -> "Alloc_local"
+  | Alloc_heap -> "Alloc_heap"
+
 let visited = ref []
 let rec raw_type ppf ty =
   let ty = safe_repr [] ty in
@@ -498,9 +502,10 @@ let rec raw_type ppf ty =
 and raw_type_list tl = raw_list raw_type tl
 and raw_type_desc ppf = function
     Tvar name -> fprintf ppf "Tvar %a" print_name name
-  | Tarrow(l,t1,t2,c) ->
-      fprintf ppf "@[<hov1>Tarrow(\"%s\",@,%a,@,%a,@,%s)@]"
-        (string_of_label l) raw_type t1 raw_type t2
+  | Tarrow((l,arg,ret),t1,t2,c) ->
+      fprintf ppf "@[<hov1>Tarrow((\"%s\",%s,%s),@,%a,@,%a,@,%s)@]"
+        (string_of_label l) (string_of_alloc_mode arg) (string_of_alloc_mode ret)
+        raw_type t1 raw_type t2
         (if is_commu_ok c then "Cok" else "Cunknown")
   | Ttuple tl ->
       fprintf ppf "@[<1>Ttuple@,%a@]" raw_type_list tl
@@ -1082,7 +1087,7 @@ let rec tree_of_typexp mode ty =
           if non_gen then Names.new_weak_name ty else Names.new_name
         in
         Otyp_var (non_gen, Names.name_of_type name_gen tty)
-    | Tarrow(l, ty1, ty2, _) ->
+    | Tarrow ((l, marg, mret), ty1, ty2, _) ->
         let lab =
           if !print_labels || is_optional l then string_of_label l else ""
         in
@@ -1094,7 +1099,18 @@ let rec tree_of_typexp mode ty =
                 tree_of_typexp mode ty
             | _ -> Otyp_stuff "<hidden>"
           else tree_of_typexp mode ty1 in
-        Otyp_arrow (lab, t1, tree_of_typexp mode ty2)
+        let t1 =
+          match marg with
+          | Alloc_heap -> t1
+          | Alloc_local -> Otyp_attribute (t1, {oattr_name="stack"})
+        in
+        let t2 = tree_of_typexp mode ty2 in
+        let t2 =
+          match mret with
+          | Alloc_heap -> t2
+          | Alloc_local -> Otyp_attribute (t2, {oattr_name="stackret"})
+        in
+        Otyp_arrow (lab, t1, t2)
     | Ttuple tyl ->
         Otyp_tuple (tree_of_typlist mode tyl)
     | Tconstr(p, tyl, _abbrev) ->

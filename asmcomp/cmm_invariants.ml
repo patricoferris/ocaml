@@ -173,6 +173,7 @@ let rec check env (expr : Cmm.expression) =
        not reported as an error. *)
     check env body;
     check env handler
+  | Cregion e -> check env e
 
 let run ppf (fundecl : Cmm.fundecl) =
   let env = Env.init () in
