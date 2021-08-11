@@ -3314,7 +3314,7 @@ and type_expect_
             extended_expression = opt_exp
           };
         exp_loc = loc; exp_extra = [];
-        exp_type = instance ty_expected; exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = instance ty_expected; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_field(srecord, lid) ->
@@ -3330,6 +3330,7 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_setfield(srecord, lid, snewval) ->
+      (* FIXME mutable label modes *)
       let (record, label, expected_type) =
         type_label_access env mode srecord Env.Mutation lid in
       let ty_record =
@@ -3352,11 +3353,11 @@ and type_expect_
       with_explanation (fun () ->
         unify_exp_types loc env to_unify (generic_instance ty_expected));
       let argl =
-        List.map (fun sarg -> type_expect env Alloc_heap sarg (mk_expected ty)) sargl in
+        List.map (fun sarg -> type_expect env mode sarg (mk_expected ty)) sargl in
       re {
         exp_desc = Texp_array argl;
         exp_loc = loc; exp_extra = [];
-        exp_type = instance ty_expected; exp_mode = Alloc_heap; (*FIXME mode*)
+        exp_type = instance ty_expected; exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_ifthenelse(scond, sifso, sifnot) ->
@@ -4020,8 +4021,7 @@ and type_expect_
       rue {
         exp_desc = Texp_pack modl;
         exp_loc = loc; exp_extra = [];
-        exp_type = newty (Tpackage (p, fl'));
-        exp_mode = Alloc_heap; (*FIXME*)
+        exp_type = newty (Tpackage (p, nl, tl')); exp_mode = mode;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_open (od, e) ->

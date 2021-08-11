@@ -46,6 +46,16 @@ CAMLextern value caml_alloc_shr_preserving_profinfo (mlsize_t, tag_t,
   caml_alloc_shr(size, tag)
 #endif /* WITH_PROFINFO */
 
+/* Variant of [caml_alloc_shr] where no memprof sampling is performed. */
+CAMLextern value caml_alloc_shr_no_track_noexc (mlsize_t, tag_t);
+
+/* Variant of [caml_alloc_shr] where no memprof sampling is performed,
+   and re-using the profinfo associated with the header given in
+   parameter. */
+CAMLextern value caml_alloc_shr_for_minor_gc (mlsize_t, tag_t, header_t);
+
+CAMLextern value caml_alloc_local(mlsize_t, tag_t);
+
 CAMLextern void caml_adjust_gc_speed (mlsize_t, mlsize_t);
 CAMLextern void caml_alloc_dependent_memory (mlsize_t bsz);
 CAMLextern void caml_free_dependent_memory (mlsize_t bsz);
