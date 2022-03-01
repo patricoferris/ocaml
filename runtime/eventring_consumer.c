@@ -608,20 +608,23 @@ CAMLprim value caml_ml_eventring_create_cursor(value path_pid_option) {
   res = caml_eventring_create_cursor(path, pid, &cursor);
 
   if (res != E_SUCCESS) {
-    caml_stat_free(&path);
+    if( path != NULL ) {
+      caml_stat_free(&path);
+    }
 
     switch(res) {
       case E_PATH_FAILURE:
         caml_failwith("Eventring: could not construct path for cursor");
       case E_OPEN_FAILURE:
         caml_failwith(
-          "Eventring: could create cursor for specified path. Was eventring \
-          started?");
+        "Eventring: could create cursor for specified path. Was eventring \
+        started?");
       case E_MAP_FAILURE:
         caml_failwith("Eventring: could not map underlying eventring."
         );
       case E_NO_CURRENT_RING:
-        caml_failwith("Eventring: no ring for current process. Was eventring \
+        caml_failwith(
+        "Eventring: no ring for current process. Was eventring \
         started?");
       default:
         caml_failwith("Eventring: could not obtain cursor");
