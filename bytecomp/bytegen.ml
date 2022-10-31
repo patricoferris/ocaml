@@ -531,6 +531,7 @@ let comp_primitive p sz args =
   | Pfloatcomp _
   | Pmakeblock _
   | Pfloatfield _
+  | Pendregion
     ->
       fatal_error "Bytegen.comp_primitive"
 

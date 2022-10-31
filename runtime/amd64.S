@@ -529,7 +529,8 @@ CFI_STARTPROC
         jb      LBL(caml_call_gc)
         ret
 CFI_ENDPROC
-ENDFUNCTION(G(caml_allocN)
+ENDFUNCTION(G(caml_allocN))
+
 
 FUNCTION(G(caml_call_local_realloc))
         CFI_STARTPROC
@@ -622,6 +623,8 @@ FUNCTION(G(caml_call_local_realloc))
         ret
 CFI_ENDPROC
 ENDFUNCTION(G(caml_call_local_realloc))
+
+
 
 /* Call a C function from OCaml */
 /******************************************************************************/

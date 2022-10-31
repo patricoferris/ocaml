@@ -497,10 +497,10 @@ method select_operation op args _dbg =
     self#select_arith Icheckbound args
   | (Cbeginregion, _) ->
      Iextcall { func="caml_local_region_begin";
-                      ty_res = typ_int; ty_args=[]; alloc=false }, args
+                      ty_res = typ_int; ty_args=[]; alloc=false; stack_ofs = -1}, args (* STACK OFFSET ? *)
   | (Cendregion, _) ->
       Iextcall { func="caml_local_region_end";
-                 ty_res = typ_void; ty_args = [XInt]; alloc=false }, args
+                 ty_res = typ_void; ty_args = [XInt]; alloc=false; stack_ofs = -1 }, args
   | _ -> Misc.fatal_error "Selection.select_oper"
 
 method private select_arith_comm op = function

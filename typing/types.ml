@@ -447,7 +447,6 @@ let signature_item_id = function
   | Sig_class_type (id, _, _, _)
     -> id
 
-<<<<<<< HEAD
 (**** Definitions for backtracking ****)
 
 type change =

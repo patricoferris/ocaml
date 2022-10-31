@@ -3633,6 +3633,7 @@ and type_expect_
         exp_desc = Texp_send(obj, meth);
         exp_loc = loc; exp_extra = [];
         exp_type = typ;
+        exp_mode = Alloc_heap; (* FIXME *)
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
                   (* let method_type = newvar () in
@@ -4959,7 +4960,7 @@ and type_statement ?explanation env sexp =
 
 and type_unpacks ?(in_function : (Location.t * type_expr) option)
     env mode (unpacks : to_unpack list) sbody expected_ty =
-  if unpacks = [] then type_expect ?in_function env sbody expected_ty else
+  if unpacks = [] then type_expect ?in_function env mode sbody expected_ty else
   let ty = newvar() in
   (* remember original level *)
   let extended_env, tunpacks =
@@ -5390,7 +5391,7 @@ and type_let
         (* FIXME: unsound, for testing *)
         let mode =
           if List.exists (fun a -> a.attr_name.txt = "stack") pvb_attributes then Alloc_local else mode in
-        match pat.pat_type.desc with
+        match get_desc pat.pat_type with
         | Tpoly (ty, tl) ->
             if !Clflags.principal then begin_def ();
             let vars, ty' = instance_poly ~keep_names:true true tl ty in

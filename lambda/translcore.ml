@@ -273,7 +273,7 @@ let make_region e =
     | (Lassign _ | Lwhile _ | Lfor _) as e ->
        Lsequence(e, op_end)
 
-    | ((Lapply _| Lstaticraise _ | Lstaticcatch _ | Ltrywith _) as e) (* FIXME *)
+    | ((Lapply _| Lstaticraise _ | Lstaticcatch _ | Ltrywith _ | Lmutvar _ | Lmutlet _) as e) (* FIXME *)
     | ((Lprim _ | Lsend _) as e) ->
        Llet(Strict, Pgenval, res, e, Lsequence (op_end, Lvar res))
   in

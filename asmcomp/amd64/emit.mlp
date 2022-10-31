@@ -759,7 +759,7 @@ let emit_instr env fallthrough i =
       I.mov (domain_field Domainstate.Domain_local_sp) (res i 0)
   | Lop(Ispecific(Iregionend)) ->
       I.mov (arg i 0) (domain_field Domainstate.Domain_local_sp)
-  | Lop (Iname_for_debugger _) -> ()
+
   | Lreloadretaddr ->
       ()
   | Lreturn ->
