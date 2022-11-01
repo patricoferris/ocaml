@@ -659,9 +659,9 @@ let rec choice ctx t =
     | Lifused (x, lam) ->
         let+ lam = choice ctx ~tail lam in
         Lifused (x, lam)
-    | Lbeginregion (x, lam) ->
+    | Lregion lam ->
         let+ lam = choice ctx ~tail lam in
-        Lbeginregion (x, lam)
+        Lregion lam
 
 
   and choice_apply ctx ~tail apply =
@@ -906,7 +906,6 @@ let rec choice ctx t =
     | Pbswap16
     | Pbbswap _
     | Pint_as_pointer
-    | Pendregion (* ? *)
       ->
         let primargs = traverse_list ctx primargs in
         Choice.lambda (Lprim (prim, primargs, loc))
