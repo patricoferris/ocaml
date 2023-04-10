@@ -287,3 +287,61 @@ let has_unboxed attr =
 
 let has_boxed attr =
   List.exists (check ["ocaml.boxed"; "boxed"]) attr
+
+let has_local attr =
+  List.exists (check ["ocaml.local"; "local"]) attr
+
+let has_global attrs =
+  List.exists (check ["ocaml.global"; "global"]) attrs
+  
+let has_nonlocal attrs =
+  List.exists (check ["ocaml.nonlocal"; "nonlocal"]) attrs
+
+module Attribute_table = Hashtbl.Make (struct
+  type t = string Ast_helper.with_loc
+
+  let hash : t -> int = Hashtbl.hash
+  let equal : t -> t -> bool = (=)
+end)
+let unused_attrs = Attribute_table.create 128
+let mark_used t = Attribute_table.remove unused_attrs t
+
+let filter_attributes nms_and_conds attrs =
+  List.filter (fun a ->
+    List.exists (fun (nms, cond) ->
+      if List.mem a.attr_name.txt nms
+      then (mark_used a.attr_name; cond)
+      else false)
+      nms_and_conds
+  ) attrs
+
+let has_attribute nms attrs =
+  List.exists
+    (fun a ->
+        if List.mem a.attr_name.txt nms
+        then (mark_used a.attr_name; true)
+        else false)
+    attrs
+
+let ident_of_payload = function
+  | PStr[{pstr_desc=Pstr_eval({pexp_desc=Pexp_ident {txt=Lident id}},_)}] ->
+      Some id
+  | _ -> None
+
+let tailcall attr =
+  let has_nontail = has_attribute ["ocaml.nontail"; "nontail"] attr in
+  let tail_attrs = filter_attributes [["ocaml.tail";"tail"], true] attr in
+  match has_nontail, tail_attrs with
+  | true, (_ :: _) -> Error `Conflict
+  | _, (_ :: _ :: _) -> Error `Conflict
+  | false, [] -> Ok None
+  | true, [] -> Ok (Some `Nontail)
+  | false, [{attr_payload = PStr []}] -> Ok (Some `Tail)
+  | false, [t] ->
+      match ident_of_payload t.attr_payload with
+      | Some "hint" -> Ok (Some `Tail_if_possible)
+      | _ ->
+        Location.prerr_warning t.attr_loc
+          (Warnings.Attribute_payload
+              (t.attr_name.txt, "Only 'hint' is supported"));
+        Ok (Some `Tail_if_possible)

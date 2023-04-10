@@ -48,7 +48,7 @@ let newgenconstr path tyl = newgenty (Tconstr (path, tyl, ref Mnil))
 let constructor_existentials cd_args cd_res =
   let tyl =
     match cd_args with
-    | Cstr_tuple l -> l
+    | Cstr_tuple l -> List.map (fun (ty, _) -> ty) l
     | Cstr_record l -> List.map (fun l -> l.ld_type) l
   in
   let existentials =
@@ -88,7 +88,7 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
         }
       in
       existentials,
-      [ newgenconstr path type_params ],
+      [ newgenconstr path type_params, Unrestricted ],
       Some tdecl
 
 let constructor_descrs ~current_unit ty_path decl cstrs rep =
@@ -179,6 +179,7 @@ let none =
 let dummy_label =
   { lbl_name = ""; lbl_res = none; lbl_arg = none; lbl_mut = Immutable;
     lbl_pos = (-1); lbl_all = [||]; lbl_repres = Record_regular;
+    lbl_global = Unrestricted;
     lbl_private = Public;
     lbl_loc = Location.none;
     lbl_attributes = [];
@@ -195,6 +196,7 @@ let label_descrs ty_res lbls repres priv =
             lbl_res = ty_res;
             lbl_arg = l.ld_type;
             lbl_mut = l.ld_mutable;
+            lbl_global = l.ld_global;
             lbl_pos = num;
             lbl_all = all_labels;
             lbl_repres = repres;

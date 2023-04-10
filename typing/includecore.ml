@@ -38,7 +38,7 @@ let native_repr_args nra1 nra2 =
     | [], [] -> None
     | [], _ :: _ -> assert false
     | _ :: _, [] -> assert false
-    | nr1 :: nra1, nr2 :: nra2 ->
+    | (_, nr1) :: nra1, (_, nr2) :: nra2 ->
       if not (Primitive.equal_native_repr nr1 nr2) then Some (Argument_repr i)
       else loop (i+1) nra1 nra2
   in
@@ -58,7 +58,7 @@ let primitive_descriptions pd1 pd2 =
     Some Native_name
   else if not
     (Primitive.equal_native_repr
-       pd1.prim_native_repr_res pd2.prim_native_repr_res) then
+       (snd pd1.prim_native_repr_res) (snd pd2.prim_native_repr_res)) then
     Some Result_repr
   else
     native_repr_args pd1.prim_native_repr_args pd2.prim_native_repr_args
@@ -67,6 +67,11 @@ type value_mismatch =
   | Primitive_mismatch of primitive_mismatch
   | Not_a_primitive
   | Type of Errortrace.moregen_error
+
+type locality_mismatch =
+  { order : position;
+    nonlocal : bool
+  }
 
 exception Dont_match of value_mismatch
 
@@ -84,13 +89,32 @@ let value_descriptions ~loc env name
   | () -> begin
       match (vd1.val_kind, vd2.val_kind) with
       | (Val_prim p1, Val_prim p2) -> begin
+          let ty1_global, _ = Ctype.instance_prim_mode p1 vd1.val_type in
+          let ty2_global =
+            let ty2, mode2 = Ctype.instance_prim_mode p2 vd2.val_type in
+            Option.iter Alloc_mode.make_global_exn mode2;
+            ty2
+          in
+          (try Ctype.moregeneral env true ty1_global ty2_global
+            with Ctype.Moregen err -> raise (Dont_match (Type err)));
+          let ty1_local, _ = Ctype.instance_prim_mode p1 vd1.val_type in
+          let ty2_local =
+            let ty2, mode2 = Ctype.instance_prim_mode p2 vd2.val_type in
+            Option.iter Alloc_mode.make_local_exn mode2;
+            ty2
+          in
+          (try Ctype.moregeneral env true ty1_local ty2_local
+            with Ctype.Moregen err -> raise (Dont_match (Type err)));
           match primitive_descriptions p1 p2 with
           | None -> Tcoerce_none
           | Some err -> raise (Dont_match (Primitive_mismatch err))
         end
       | (Val_prim p, _) ->
+          let ty1, mode1 = Ctype.instance_prim_mode p vd1.val_type in
+          (try Ctype.moregeneral env true ty1 vd2.val_type
+         with Ctype.Moregen err -> raise (Dont_match (Type err)));
           let pc =
-            { pc_desc = p; pc_type = vd2.Types.val_type;
+            { pc_desc = p; pc_type = vd2.Types.val_type; pc_poly_mode = mode1;
               pc_env = env; pc_loc = vd1.Types.val_loc; }
           in
           Tcoerce_primitive pc
@@ -150,6 +174,7 @@ type kind_mismatch = type_kind * type_kind
 type label_mismatch =
   | Type of Errortrace.equality_error
   | Mutability of position
+  | Nonlocality of locality_mismatch
 
 type record_change =
   (Types.label_declaration, Types.label_declaration, label_mismatch)
@@ -165,6 +190,7 @@ type constructor_mismatch =
   | Inline_record of record_change list
   | Kind of position
   | Explicit_return_type of position
+  | Nonlocality of int * locality_mismatch
 
 type extension_constructor_mismatch =
   | Constructor_privacy
@@ -252,6 +278,17 @@ let report_privacy_mismatch ppf err =
        (if singular then "A private" else "Private")
        item
 
+let report_locality_mismatch first second ppf err =
+  let {order; nonlocal} = err in
+  let sort =
+    if nonlocal then "nonlocal"
+    else "global"
+  in
+  Format.fprintf ppf "%s is %s and %s is not."
+    (String.capitalize_ascii  (choose order first second))
+    sort
+    (choose_other order first second)
+
 let report_label_mismatch first second env ppf err =
   match (err : label_mismatch) with
   | Type err ->
@@ -260,6 +297,7 @@ let report_label_mismatch first second env ppf err =
       Format.fprintf ppf "%s is mutable and %s is not."
         (String.capitalize_ascii (choose ord first second))
         (choose_other ord first second)
+  | Nonlocality err_ -> report_locality_mismatch first second ppf err_
 
 let pp_record_diff first second prefix decl env ppf (x : record_change) =
   match x with
@@ -326,6 +364,10 @@ let report_constructor_mismatch first second decl env ppf err =
       pr "%s has explicit return type and %s doesn't."
         (String.capitalize_ascii (choose ord first second))
         (choose_other ord first second)
+  | Nonlocality (i, err) ->
+    pr "Locality mismatch at argument position %i : %a"
+      (i + 1) (report_locality_mismatch first second) err
+      (* argument position is one-based; more intuitive *)
 
 let pp_variant_diff first second prefix decl env ppf (x : variant_change) =
   match x with
@@ -580,6 +622,31 @@ module Record_diffing = struct
 end
 
 
+let compare_global_flags flag0 flag1 =
+  match flag0, flag1 with
+  | Global, (Nonlocal | Unrestricted) ->
+    Some {order = First; nonlocal = false}
+  | (Nonlocal | Unrestricted), Global ->
+    Some {order = Second; nonlocal = false}
+  | Nonlocal, Unrestricted ->
+    Some {order = First; nonlocal = true}
+  | Unrestricted, Nonlocal ->
+    Some {order = Second; nonlocal = true}
+  | Global, Global
+  | Nonlocal, Nonlocal
+  | Unrestricted, Unrestricted ->
+    None
+
+(* just like List.find_map, but also gives index if found *)
+let rec find_map_idx f ?(off = 0) l =
+  match l with
+  | [] -> None
+  | x :: xs -> begin
+      match f x with
+      | None -> find_map_idx f ~off:(off+1) xs
+      | Some y -> Some (off, y)
+    end
+
 module Variant_diffing = struct
 
   let compare_constructor_arguments ~loc env params1 params2 arg1 arg2 =
@@ -588,10 +655,16 @@ module Variant_diffing = struct
         if List.length arg1 <> List.length arg2 then
           Some (Arity : constructor_mismatch)
         else begin
+        let arg1_tys, arg1_gfs = List.split arg1
+        and arg2_tys, arg2_gfs = List.split arg2
+        in
         (* Ctype.equal must be called on all arguments at once, cf. PR#7378 *)
-        match Ctype.equal env true (params1 @ arg1) (params2 @ arg2) with
+        match Ctype.equal env true (params1 @ arg1_tys) (params2 @ arg2_tys) with
         | exception Ctype.Equality err -> Some (Type err)
-        | () -> None
+        | () -> 
+          List.combine arg1_gfs arg2_gfs
+          |> find_map_idx (fun (x,y) -> compare_global_flags x y)
+          |> Option.map (fun (i, err) -> Nonlocality (i, err))
       end
     | Types.Cstr_record l1, Types.Cstr_record l2 ->
         Option.map

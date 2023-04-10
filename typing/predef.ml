@@ -155,7 +155,7 @@ let mk_add_type add_type type_ident
   in
   add_type type_ident decl env
 
-let build_initial_env add_type add_extension empty_env =
+let common_initial_env add_type add_extension empty_env =
   let add_type = mk_add_type add_type
   and add_type1 type_ident
       ~variance ~separability ?(kind=fun _ -> Type_abstract) env =
@@ -183,7 +183,7 @@ let build_initial_env add_type add_extension empty_env =
     add_extension id
       { ext_type_path = path_exn;
         ext_type_params = [];
-        ext_args = Cstr_tuple l;
+        ext_args = Cstr_tuple (List.map (fun x -> (x, Unrestricted)) l);
         ext_ret_type = None;
         ext_private = Asttypes.Public;
         ext_loc = Location.none;
@@ -217,13 +217,13 @@ let build_initial_env add_type add_extension empty_env =
        ~variance:Variance.covariant
        ~separability:Separability.Ind
        ~kind:(fun tvar ->
-         variant [cstr ident_nil []; cstr ident_cons [tvar; type_list tvar]])
+         variant [cstr ident_nil []; cstr ident_cons [tvar, Unrestricted; type_list tvar, Unrestricted]])
   |> add_type ident_nativeint
   |> add_type1 ident_option
        ~variance:Variance.covariant
        ~separability:Separability.Ind
        ~kind:(fun tvar ->
-         variant [cstr ident_none []; cstr ident_some [tvar]])
+         variant [cstr ident_none []; cstr ident_some [tvar, Unrestricted]])
   |> add_type ident_string
   |> add_type ident_bytes
   |> add_type ident_unit
@@ -246,6 +246,12 @@ let build_initial_env add_type add_extension empty_env =
   |> add_extension ident_undefined_recursive_module
        [newgenty (Ttuple[type_string; type_int; type_int])]
 
+let build_initial_env add_type add_exception empty_env =
+  let common = common_initial_env add_type add_exception empty_env in
+  let add_type = mk_add_type add_type in
+  let safe_string = add_type ident_bytes common in
+  let unsafe_string = add_type ident_bytes ~manifest:type_string common in
+  (safe_string, unsafe_string)
 let builtin_values =
   List.map (fun id -> (Ident.name id, id)) all_predef_exns
 

@@ -51,9 +51,15 @@ type type_kind =
 
 type kind_mismatch = type_kind * type_kind
 
+type locality_mismatch =
+  { order : position;
+    nonlocal : bool
+  }
+
 type label_mismatch =
   | Type of Errortrace.equality_error
   | Mutability of position
+  | Nonlocality of locality_mismatch
 
 type record_change =
   (Types.label_declaration as 'ld, 'ld, label_mismatch) Diffing_with_keys.change
@@ -68,6 +74,7 @@ type constructor_mismatch =
   | Inline_record of record_change list
   | Kind of position
   | Explicit_return_type of position
+  | Nonlocality of int * locality_mismatch
 
 type extension_constructor_mismatch =
   | Constructor_privacy

@@ -495,10 +495,11 @@ let rec raw_type ppf ty =
 and raw_type_list tl = raw_list raw_type tl
 and raw_type_desc ppf = function
     Tvar name -> fprintf ppf "Tvar %a" print_name name
-  | Tarrow(l,t1,t2,c) ->
-      fprintf ppf "@[<hov1>Tarrow(\"%s\",@,%a,@,%a,@,%s)@]"
-        (string_of_label l) raw_type t1 raw_type t2
-        (if is_commu_ok c then "Cok" else "Cunknown")
+  | Tarrow((l,arg,ret),t1,t2,c) ->
+    fprintf ppf "@[<hov1>Tarrow((\"%s\",%a,%a),@,%a,@,%a,@,%s)@]"
+      (string_of_label l) Alloc_mode.print arg Alloc_mode.print ret
+      raw_type t1 raw_type t2
+      (if is_commu_ok c then "Cok" else "Cunknown")
   | Ttuple tl ->
       fprintf ppf "@[<1>Ttuple@,%a@]" raw_type_list tl
   | Tconstr (p, tl, abbrev) ->
@@ -1091,19 +1092,34 @@ let rec tree_of_typexp mode ty =
           if non_gen then Names.new_weak_name ty else Names.new_name
         in
         Otyp_var (non_gen, Names.name_of_type name_gen tty)
-    | Tarrow(l, ty1, ty2, _) ->
-        let lab =
-          if !print_labels || is_optional l then string_of_label l else ""
-        in
-        let t1 =
-          if is_optional l then
-            match get_desc ty1 with
-            | Tconstr(path, [ty], _)
-              when Path.same path Predef.path_option ->
-                tree_of_typexp mode ty
-            | _ -> Otyp_stuff "<hidden>"
-          else tree_of_typexp mode ty1 in
-        Otyp_arrow (lab, t1, tree_of_typexp mode ty2)
+    | Tarrow ((l, marg, mret), ty1, ty2, _) ->
+      let lab =
+        if !print_labels || is_optional l then string_of_label l else ""
+      in
+      let t1 =
+        if is_optional l then
+          match get_desc ty1 with
+          | Tconstr(path, [ty], _)
+            when Path.same path Predef.path_option ->
+              tree_of_typexp mode ty
+          | _ -> Otyp_stuff "<hidden>"
+        else
+          tree_of_typexp mode ty1
+      in
+      let am =
+        match Alloc_mode.check_const marg with
+        | Some Global -> Oam_global
+        | Some Local -> Oam_local
+        | None -> Oam_unknown
+      in
+      let t2 = tree_of_typexp mode ty2 in
+      let rm =
+        match Alloc_mode.check_const mret with
+        | Some Global -> Oam_global
+        | Some Local -> Oam_local
+        | None -> Oam_unknown
+      in
+      Otyp_arrow (lab, am, t1, rm, t2)
     | Ttuple tyl ->
         Otyp_tuple (tree_of_typlist mode tyl)
     | Tconstr(p, tyl, _abbrev) ->
@@ -1208,6 +1224,15 @@ and tree_of_row_field mode (l, f) =
 
 and tree_of_typlist mode tyl =
   List.map (tree_of_typexp mode) tyl
+
+and tree_of_typ_gf (ty, gf) =
+  let gf =
+    match gf with
+    | Types.Global -> Ogf_global
+    | Nonlocal -> Ogf_nonlocal
+    | Unrestricted -> Ogf_unrestricted
+  in
+  (tree_of_typexp Type ty, gf)
 
 and tree_of_typobject mode fi nm =
   begin match nm with
@@ -1315,15 +1340,22 @@ let filter_params tyl =
   in List.rev params
 
 let prepare_type_constructor_arguments = function
-  | Cstr_tuple l -> List.iter prepare_type l
+  | Cstr_tuple l -> List.iter (fun (ty, _) -> prepare_type ty) l
   | Cstr_record l -> List.iter (fun l -> prepare_type l.ld_type) l
 
 let tree_of_label l =
-  (Ident.name l.ld_id, l.ld_mutable = Mutable, tree_of_typexp Type l.ld_type)
+  let gom =
+    match l.ld_mutable, l.ld_global with
+    | Mutable, _ -> Ogom_mutable
+    | Immutable, Global -> Ogom_global
+    | Immutable, Nonlocal -> Ogom_nonlocal
+    | Immutable, Unrestricted -> Ogom_immutable
+  in
+  (Ident.name l.ld_id, gom, tree_of_typexp Type l.ld_type)
 
 let tree_of_constructor_arguments = function
-  | Cstr_tuple l -> tree_of_typlist Type l
-  | Cstr_record l -> [ Otyp_record (List.map tree_of_label l) ]
+  | Cstr_tuple l -> List.map tree_of_typ_gf l
+  | Cstr_record l -> [ Otyp_record (List.map tree_of_label l), Ogf_unrestricted ]
 
 let tree_of_single_constructor cd =
   let name = Ident.name cd.cd_id in
@@ -1520,7 +1552,7 @@ let prepared_type_declaration id ppf decl =
 
 let constructor_arguments ppf a =
   let tys = tree_of_constructor_arguments a in
-  !Oprint.out_type ppf (Otyp_tuple tys)
+  !Oprint.out_constr_args ppf tys
 
 (* Print an extension declaration *)
 

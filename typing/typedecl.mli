@@ -105,6 +105,7 @@ type error =
   | Boxed_and_unboxed
   | Nonrec_gadt
   | Invalid_private_row_declaration of type_expr
+  | Global_and_nonlocal
 
 exception Error of Location.t * error
 

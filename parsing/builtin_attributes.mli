@@ -82,3 +82,8 @@ val immediate64: Parsetree.attributes -> bool
 
 val has_unboxed: Parsetree.attributes -> bool
 val has_boxed: Parsetree.attributes -> bool
+val has_local: Parsetree.attributes -> bool
+val has_global: Parsetree.attributes -> bool
+val has_nonlocal: Parsetree.attributes -> bool
+val tailcall : Parsetree.attributes ->
+  ([`Tail|`Nontail|`Tail_if_possible] option, [`Conflict]) result

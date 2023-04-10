@@ -26,13 +26,18 @@ type native_repr =
   | Unboxed_integer of boxed_integer
   | Untagged_int
 
+type mode =
+  | Prim_local
+  | Prim_global
+  | Prim_poly
+
 type description =
   { prim_name: string;         (* Name of primitive  or C function *)
     prim_arity: int;           (* Number of arguments *)
     prim_alloc: bool;          (* Does it allocates or raise? *)
     prim_native_name: string;  (* Name of C function for the nat. code gen. *)
-    prim_native_repr_args: native_repr list;
-    prim_native_repr_res: native_repr }
+    prim_native_repr_args: (mode * native_repr) list;
+    prim_native_repr_res: mode * native_repr }
 
 type error =
   | Old_style_float_with_native_repr_attribute
@@ -42,22 +47,22 @@ type error =
 exception Error of Location.t * error
 
 let is_ocaml_repr = function
-  | Same_as_ocaml_repr -> true
-  | Unboxed_float
-  | Unboxed_integer _
-  | Untagged_int -> false
+  | _, Same_as_ocaml_repr -> true
+  | _, Unboxed_float
+  | _, Unboxed_integer _
+  | _, Untagged_int -> false
 
 let is_unboxed = function
-  | Same_as_ocaml_repr
-  | Untagged_int -> false
-  | Unboxed_float
-  | Unboxed_integer _ -> true
+  | _, Same_as_ocaml_repr
+  | _, Untagged_int -> false
+  | _, Unboxed_float
+  | _, Unboxed_integer _ -> true
 
 let is_untagged = function
-  | Untagged_int -> true
-  | Same_as_ocaml_repr
-  | Unboxed_float
-  | Unboxed_integer _ -> false
+  | _, Untagged_int -> true
+  | _, Same_as_ocaml_repr
+  | _, Unboxed_float
+  | _, Unboxed_integer _ -> false
 
 let rec make_native_repr_args arity x =
   if arity = 0 then
@@ -70,8 +75,8 @@ let simple ~name ~arity ~alloc =
    prim_arity = arity;
    prim_alloc = alloc;
    prim_native_name = "";
-   prim_native_repr_args = make_native_repr_args arity Same_as_ocaml_repr;
-   prim_native_repr_res = Same_as_ocaml_repr}
+   prim_native_repr_args = make_native_repr_args arity (Prim_global, Same_as_ocaml_repr);
+   prim_native_repr_res = (Prim_global, Same_as_ocaml_repr)}
 
 let make ~name ~alloc ~native_name ~native_repr_args ~native_repr_res =
   {prim_name = name;
@@ -124,7 +129,7 @@ let parse_declaration valdecl ~native_repr_args ~native_repr_res =
   let noalloc = old_style_noalloc || noalloc_attribute in
   let native_repr_args, native_repr_res =
     if old_style_float then
-      (make_native_repr_args arity Unboxed_float, Unboxed_float)
+      (make_native_repr_args arity (Prim_global, Unboxed_float), (Prim_global, Unboxed_float))
     else
       (native_repr_args, native_repr_res)
   in
@@ -137,24 +142,25 @@ let parse_declaration valdecl ~native_repr_args ~native_repr_res =
 
 open Outcometree
 
+let add_attribute_list ty attrs =
+  List.fold_left (fun ty attr -> Otyp_attribute(ty, attr)) ty attrs
+
 let rec add_native_repr_attributes ty attrs =
   match ty, attrs with
-  | Otyp_arrow (label, a, b), attr_opt :: rest ->
-    let b = add_native_repr_attributes b rest in
-    let a =
-      match attr_opt with
-      | None -> a
-      | Some attr -> Otyp_attribute (a, attr)
-    in
-    Otyp_arrow (label, a, b)
-  | _, [Some attr] -> Otyp_attribute (ty, attr)
+  | Otyp_arrow (label, am, a, rm, r), attr_l :: rest ->
+    let r = add_native_repr_attributes r rest in
+    let a = add_attribute_list a attr_l in
+    Otyp_arrow (label, am, a, rm, r)
+  | _, [attr_l] -> add_attribute_list ty attr_l
   | _ ->
-    assert (List.for_all (fun x -> x = None) attrs);
+    assert (List.for_all (fun x -> x = []) attrs);
     ty
 
 let oattr_unboxed = { oattr_name = "unboxed" }
 let oattr_untagged = { oattr_name = "untagged" }
 let oattr_noalloc = { oattr_name = "noalloc" }
+
+let oattr_local_opt = { oattr_name = "local_opt" }
 
 let print p osig_val_decl =
   let prims =
@@ -177,15 +183,20 @@ let print p osig_val_decl =
     else
       attrs
   in
-  let attr_of_native_repr = function
-    | Same_as_ocaml_repr -> None
-    | Unboxed_float
-    | Unboxed_integer _ -> if all_unboxed then None else Some oattr_unboxed
-    | Untagged_int -> if all_untagged then None else Some oattr_untagged
+  let attrs_of_mode_and_repr (m, repr) =
+    (match m with
+     | Prim_local | Prim_global -> []
+     | Prim_poly -> [oattr_local_opt])
+    @
+    (match repr with
+     | Same_as_ocaml_repr -> []
+     | Unboxed_float
+     | Unboxed_integer _ -> if all_unboxed then [] else [oattr_unboxed]
+     | Untagged_int -> if all_untagged then [] else [oattr_untagged])
   in
   let type_attrs =
-    List.map attr_of_native_repr p.prim_native_repr_args @
-    [attr_of_native_repr p.prim_native_repr_res]
+    List.map attrs_of_mode_and_repr p.prim_native_repr_args @
+    [attrs_of_mode_and_repr p.prim_native_repr_res]
   in
   { osig_val_decl with
     oval_prims = prims;

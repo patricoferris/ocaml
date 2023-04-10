@@ -189,7 +189,7 @@ let label_decl sub x =
   {x with ld_loc; ld_name; ld_type; ld_attributes}
 
 let constructor_args sub = function
-  | Cstr_tuple l -> Cstr_tuple (List.map (sub.typ sub) l)
+  | Cstr_tuple l -> Cstr_tuple (List.map (fun (v, gf) -> sub.typ sub v, gf) l)
   | Cstr_record l -> Cstr_record (List.map (label_decl sub) l)
 
 let constructor_decl sub cd =
@@ -279,7 +279,7 @@ let pat
     match x.pat_desc with
     | Tpat_any
     | Tpat_constant _ -> x.pat_desc
-    | Tpat_var (id, s) -> Tpat_var (id, map_loc sub s)
+    | Tpat_var (id, s, rd) -> Tpat_var (id, map_loc sub s, rd)
     | Tpat_tuple l -> Tpat_tuple (List.map (sub.pat sub) l)
     | Tpat_construct (loc, cd, l, vto) ->
         let vto = Option.map (fun (vl,cty) ->
@@ -290,7 +290,7 @@ let pat
     | Tpat_record (l, closed) ->
         Tpat_record (List.map (tuple3 (map_loc sub) id (sub.pat sub)) l, closed)
     | Tpat_array l -> Tpat_array (List.map (sub.pat sub) l)
-    | Tpat_alias (p, id, s) -> Tpat_alias (sub.pat sub p, id, map_loc sub s)
+    | Tpat_alias (p, id, s, m) -> Tpat_alias (sub.pat sub p, id, map_loc sub s, m)
     | Tpat_lazy p -> Tpat_lazy (sub.pat sub p)
     | Tpat_value p ->
        (as_computation_pattern (sub.pat sub (p :> pattern))).pat_desc
@@ -322,13 +322,16 @@ let expr sub x =
     | Texp_let (rec_flag, list, exp) ->
         let (rec_flag, list) = sub.value_bindings sub (rec_flag, list) in
         Texp_let (rec_flag, list, sub.expr sub exp)
-    | Texp_function { arg_label; param; cases; partial; } ->
+    | Texp_function { arg_label; param; cases;
+                      partial; region; curry; arg_mode; alloc_mode } ->
         let cases = List.map (sub.case sub) cases in
-        Texp_function { arg_label; param; cases; partial; }
-    | Texp_apply (exp, list) ->
+        Texp_function { arg_label; param; cases;
+        partial; region; curry; arg_mode; alloc_mode }
+    | Texp_apply (exp, list, pos, am) ->
         Texp_apply (
           sub.expr sub exp,
-          List.map (tuple2 id (Option.map (sub.expr sub))) list
+          List.map (tuple2 id (Option.map (sub.expr sub))) list,
+          pos, am
         )
     | Texp_match (exp, cases, p) ->
         Texp_match (
@@ -341,13 +344,13 @@ let expr sub x =
           sub.expr sub exp,
           List.map (sub.case sub) cases
         )
-    | Texp_tuple list ->
-        Texp_tuple (List.map (sub.expr sub) list)
-    | Texp_construct (lid, cd, args) ->
-        Texp_construct (map_loc sub lid, cd, List.map (sub.expr sub) args)
+    | Texp_tuple (list, am) ->
+        Texp_tuple (List.map (sub.expr sub) list, am)
+    | Texp_construct (lid, cd, args, am) ->
+        Texp_construct (map_loc sub lid, cd, List.map (sub.expr sub) args, am)
     | Texp_variant (l, expo) ->
-        Texp_variant (l, Option.map (sub.expr sub) expo)
-    | Texp_record { fields; representation; extended_expression } ->
+        Texp_variant (l, Option.map (fun (e, am) -> sub.expr sub e, am) expo)
+    | Texp_record { fields; representation; extended_expression; alloc_mode } ->
         let fields = Array.map (function
             | label, Kept (t, mut) -> label, Kept (t, mut)
             | label, Overridden (lid, exp) ->
@@ -357,18 +360,20 @@ let expr sub x =
         Texp_record {
           fields; representation;
           extended_expression = Option.map (sub.expr sub) extended_expression;
+          alloc_mode
         }
-    | Texp_field (exp, lid, ld) ->
-        Texp_field (sub.expr sub exp, map_loc sub lid, ld)
-    | Texp_setfield (exp1, lid, ld, exp2) ->
+    | Texp_field (exp, lid, ld, am) ->
+        Texp_field (sub.expr sub exp, map_loc sub lid, ld, am)
+    | Texp_setfield (exp1, am, lid, ld, exp2) ->
         Texp_setfield (
           sub.expr sub exp1,
+          am,
           map_loc sub lid,
           ld,
           sub.expr sub exp2
         )
-    | Texp_array list ->
-        Texp_array (List.map (sub.expr sub) list)
+    | Texp_array (list, am) ->
+        Texp_array (List.map (sub.expr sub) list, am)
     | Texp_ifthenelse (exp1, exp2, expo) ->
         Texp_ifthenelse (
           sub.expr sub exp1,
@@ -394,17 +399,20 @@ let expr sub x =
           dir,
           sub.expr sub exp3
         )
-    | Texp_send (exp, meth) ->
+    | Texp_send (exp, meth, ap, am) ->
         Texp_send
           (
             sub.expr sub exp,
-            meth
+            meth,
+            ap,
+            am
           )
-    | Texp_new (path, lid, cd) ->
+    | Texp_new (path, lid, cd, am) ->
         Texp_new (
           path,
           map_loc sub lid,
-          cd
+          cd,
+          am
         )
     | Texp_instvar (path1, path2, id) ->
         Texp_instvar (

@@ -75,10 +75,10 @@ and 'k pattern_desc =
   (* value patterns *)
   | Tpat_any : value pattern_desc
         (** _ *)
-  | Tpat_var : Ident.t * string loc -> value pattern_desc
+  | Tpat_var : Ident.t * string loc * Types.value_mode -> value pattern_desc
         (** x *)
   | Tpat_alias :
-      value general_pattern * Ident.t * string loc -> value pattern_desc
+      value general_pattern * Ident.t * string loc * Types.value_mode -> value pattern_desc
         (** P as a *)
   | Tpat_constant : constant -> value pattern_desc
         (** 1, 'a', "true", 1.0, 1l, 1L, 1n *)
@@ -170,6 +170,10 @@ and exp_extra =
   | Texp_newtype of string
         (** fun (type t) ->  *)
 
+and fun_curry_state =
+| More_args of { partial_mode : Types.alloc_mode }
+| Final_arg of { partial_mode : Types.alloc_mode }
+
 and expression_desc =
     Texp_ident of Path.t * Longident.t loc * Types.value_description
         (** x
@@ -182,7 +186,8 @@ and expression_desc =
             let rec P1 = E1 and ... and Pn = EN in E   (flag = Recursive)
          *)
   | Texp_function of { arg_label : arg_label; param : Ident.t;
-      cases : value case list; partial : partial; }
+    cases : value case list; partial : partial; region : bool; curry : fun_curry_state;
+    arg_mode : Types.alloc_mode; alloc_mode : Types.alloc_mode }
         (** [Pexp_fun] and [Pexp_function] both translate to [Texp_function].
             See {!Parsetree} for more details.
 
@@ -193,7 +198,7 @@ and expression_desc =
               [Partial] if the pattern match is partial
               [Total] otherwise.
          *)
-  | Texp_apply of expression * (arg_label * expression option) list
+  | Texp_apply of expression * (arg_label * expression option) list * apply_position * Types.alloc_mode
         (** E0 ~l1:E1 ... ~ln:En
 
             The expression can be None if the expression is abstracted over
@@ -220,19 +225,20 @@ and expression_desc =
          *)
   | Texp_try of expression * value case list
         (** try E with P1 -> E1 | ... | PN -> EN *)
-  | Texp_tuple of expression list
+  | Texp_tuple of expression list * Types.alloc_mode
         (** (E1, ..., EN) *)
   | Texp_construct of
-      Longident.t loc * Types.constructor_description * expression list
+      Longident.t loc * Types.constructor_description * expression list * Types.alloc_mode option
         (** C                []
             C E              [E]
             C (E1, ..., En)  [E1;...;En]
          *)
-  | Texp_variant of label * expression option
+  | Texp_variant of label * (expression * Types.alloc_mode) option
   | Texp_record of {
       fields : ( Types.label_description * record_label_definition ) array;
       representation : Types.record_representation;
       extended_expression : expression option;
+      alloc_mode : Types.alloc_mode option;
     }
         (** { l1=P1; ...; ln=Pn }           (extended_expression = None)
             { E0 with l1=P1; ...; ln=Pn }   (extended_expression = Some E0)
@@ -245,18 +251,18 @@ and expression_desc =
               { fields = [| l1, Kept t1; l2 Override P2 |]; representation;
                 extended_expression = Some E0 }
         *)
-  | Texp_field of expression * Longident.t loc * Types.label_description
+  | Texp_field of expression * Longident.t loc * Types.label_description * Types.alloc_mode option
   | Texp_setfield of
-      expression * Longident.t loc * Types.label_description * expression
-  | Texp_array of expression list
+      expression * Types.alloc_mode * Longident.t loc * Types.label_description * expression
+  | Texp_array of expression list * Types.alloc_mode
   | Texp_ifthenelse of expression * expression * expression option
   | Texp_sequence of expression * expression
   | Texp_while of expression * expression
   | Texp_for of
       Ident.t * Parsetree.pattern * expression * expression * direction_flag *
         expression
-  | Texp_send of expression * meth
-  | Texp_new of Path.t * Longident.t loc * Types.class_declaration
+  | Texp_send of expression * meth * apply_position * Types.alloc_mode
+  | Texp_new of Path.t * Longident.t loc * Types.class_declaration * apply_position
   | Texp_instvar of Path.t * Path.t * string loc
   | Texp_setinstvar of Path.t * Path.t * string loc * expression
   | Texp_override of Path.t * (Ident.t * string loc * expression) list
@@ -307,6 +313,22 @@ and binding_op =
     bop_exp : expression;
     bop_loc : Location.t;
   }
+
+and ('a, 'b) arg_or_omitted =
+  | Arg of 'a
+  | Omitted of 'b
+
+and omitted_parameter =
+{ mode_closure : Types.alloc_mode;
+  mode_arg : Types.alloc_mode;
+  mode_ret : Types.alloc_mode }
+
+and apply_arg = (expression, omitted_parameter) arg_or_omitted
+
+and apply_position =
+  | Tail
+  | Nontail
+  | Default
 
 (* Value expressions for the class language *)
 
@@ -472,6 +494,7 @@ and primitive_coercion =
   {
     pc_desc: Primitive.description;
     pc_type: Types.type_expr;
+    pc_poly_mode: Types.alloc_mode option;
     pc_env: Env.t;
     pc_loc : Location.t;
   }
@@ -653,6 +676,7 @@ and label_declaration =
      ld_id: Ident.t;
      ld_name: string loc;
      ld_mutable: mutable_flag;
+     ld_global: Types.global_flag;
      ld_type: core_type;
      ld_loc: Location.t;
      ld_attributes: attributes;
@@ -670,7 +694,7 @@ and constructor_declaration =
     }
 
 and constructor_arguments =
-  | Cstr_tuple of core_type list
+  | Cstr_tuple of (core_type * Types.global_flag) list
   | Cstr_record of label_declaration list
 
 and type_extension =

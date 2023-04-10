@@ -243,7 +243,7 @@ let compute_variance_type env ~check (required, loc) decl tyl =
         (if p then if n then full else covariant else conjugate covariant))
     params required
 
-let add_false = List.map (fun ty -> false, ty)
+let add_false = List.map (fun (ty,_) -> false, ty)
 
 (* A parameter is constrained if it is either instantiated,
    or it is a variable appearing in another parameter *)
@@ -295,7 +295,7 @@ let compute_variance_extension env decl ext rloc =
     {decl with type_params = ext.ext_type_params}
     (ext.ext_args, ext.ext_ret_type)
 
-let compute_variance_gadt_constructor env ~check rloc decl tl =
+let _compute_variance_gadt_constructor env ~check rloc decl tl =
   let check =
     match check with
     | Some _ -> Some (Gadt_constructor tl)
@@ -330,23 +330,16 @@ let compute_variance_decl env ~check decl (required, _ as rloc) =
               (mn @ List.flatten (List.map (fun c -> for_constr c.Types.cd_args)
                                     tll))
           else begin
-            let vari =
-              List.map
-                (fun ty ->
-                   compute_variance_type env ~check rloc
-                     {decl with type_private = Private}
-                     (add_false [ ty ])
-                )
-                (Option.to_list decl.type_manifest)
-            in
-            let constructor_variance =
-              List.map
-                (compute_variance_gadt_constructor env ~check rloc decl)
-                tll
-            in
-            match List.append vari constructor_variance with
+            let mn =
+              List.map (fun (_,ty) -> (Types.Cstr_tuple [ty, Unrestricted],None)) mn in
+            let tll =
+              mn @ List.map (fun c -> c.Types.cd_args, c.Types.cd_res) tll in
+            match List.map (compute_variance_gadt env ~check rloc decl) tll with
             | vari :: rem ->
-                List.fold_left (List.map2 Variance.union) vari rem
+                let varl = List.fold_left (List.map2 Variance.union) vari rem in
+                List.map
+                  Variance.(fun v -> if mem Pos v && mem Neg v then full else v)
+                  varl
             | _ -> assert false
           end
       | Type_record (ftl, _) ->

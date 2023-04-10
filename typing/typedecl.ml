@@ -75,6 +75,7 @@ type error =
   | Boxed_and_unboxed
   | Nonrec_gadt
   | Invalid_private_row_declaration of type_expr
+  | Global_and_nonlocal
 
 open Typedtree
 
@@ -215,6 +216,16 @@ let make_params env params =
   in
     List.map make_param params
 
+let transl_global_flags loc attrs =
+  let transl_global_flag _loc r = r in
+  let global = transl_global_flag loc (Builtin_attributes.has_global attrs) in
+  let nonlocal = transl_global_flag loc (Builtin_attributes.has_nonlocal attrs) in
+  match global, nonlocal with
+  | true, true -> raise (Error(loc, Global_and_nonlocal))
+  | true, false -> Types.Global
+  | false, true -> Types.Nonlocal
+  | false, false -> Types.Unrestricted
+
 let transl_labels env univars closed lbls =
   assert (lbls <> []);
   let all_labels = ref String.Set.empty in
@@ -229,9 +240,14 @@ let transl_labels env univars closed lbls =
     Builtin_attributes.warning_scope attrs
       (fun () ->
          let arg = Ast_helper.Typ.force_poly arg in
-         let cty = transl_simple_type env ?univars ~closed arg in
+         let cty = transl_simple_type env ?univars ~closed Global arg in
+         let gbl =
+          match mut with
+          | Mutable -> Types.Global
+          | Immutable -> transl_global_flags loc attrs
+         in
          {ld_id = Ident.create_local name.txt;
-          ld_name = name; ld_mutable = mut;
+          ld_name = name; ld_mutable = mut; ld_global = gbl;
           ld_type = cty; ld_loc = loc; ld_attributes = attrs}
       )
   in
@@ -243,6 +259,7 @@ let transl_labels env univars closed lbls =
          let ty = match get_desc ty with Tpoly(t,[]) -> t | _ -> ty in
          {Types.ld_id = ld.ld_id;
           ld_mutable = ld.ld_mutable;
+          ld_global = ld.ld_global;
           ld_type = ty;
           ld_loc = ld.ld_loc;
           ld_attributes = ld.ld_attributes;
@@ -252,11 +269,21 @@ let transl_labels env univars closed lbls =
       lbls in
   lbls, lbls'
 
+let transl_types_gf env univars closed tyl =
+  let mk arg =
+    let cty = transl_simple_type env ?univars ~closed Global arg in
+    let gf = transl_global_flags arg.ptyp_loc arg.ptyp_attributes in
+    (cty, gf)
+  in
+  let tyl_gfl = List.map mk tyl in
+  let tyl_gfl' = List.map (fun (cty, gf) -> cty.ctyp_type, gf) tyl_gfl in
+  tyl_gfl, tyl_gfl'
+
 let transl_constructor_arguments env univars closed = function
   | Pcstr_tuple l ->
-      let l = List.map (transl_simple_type env ?univars ~closed) l in
-      Types.Cstr_tuple (List.map (fun t -> t.ctyp_type) l),
-      Cstr_tuple l
+      let flds, flds' = transl_types_gf env univars closed l in
+      Types.Cstr_tuple flds',
+      Cstr_tuple flds
   | Pcstr_record l ->
       let lbls, lbls' = transl_labels env univars closed l in
       Types.Cstr_record lbls',
@@ -285,7 +312,7 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
             transl_constructor_arguments env univars closed sargs
           in
           let tret_type =
-            transl_simple_type env ?univars ~closed sret_type in
+            transl_simple_type env ?univars ~closed Global sret_type in
           let ret_type = tret_type.ctyp_type in
           (* TODO add back type_path as a parameter ? *)
           begin match get_desc ret_type with
@@ -325,8 +352,8 @@ let transl_declaration env sdecl (id, uid) =
   let params = List.map (fun (cty, _) -> cty.ctyp_type) tparams in
   let cstrs = List.map
     (fun (sty, sty', loc) ->
-      transl_simple_type env ~closed:false sty,
-      transl_simple_type env ~closed:false sty', loc)
+      transl_simple_type env ~closed:false Global sty,
+      transl_simple_type env ~closed:false Global sty', loc)
     sdecl.ptype_cstrs
   in
   let unboxed_attr = get_unboxed_from_attributes sdecl in
@@ -441,7 +468,7 @@ let transl_declaration env sdecl (id, uid) =
         None -> None, None
       | Some sty ->
         let no_row = not (is_fixed_type sdecl) in
-        let cty = transl_simple_type env ~closed:no_row sty in
+        let cty = transl_simple_type env ~closed:no_row Global sty in
         Some cty, Some cty.ctyp_type
     in
     let arity = List.length params in
@@ -574,7 +601,7 @@ let check_constraints env sdecl (_, decl) =
           begin match cd_args, pcd_args with
           | Cstr_tuple tyl, Pcstr_tuple styl ->
               List.iter2
-                (fun sty ty ->
+                (fun sty (ty, _) ->
                    check_constraints_rec env sty.ptyp_loc visited ty)
                 styl tyl
           | Cstr_record tyl, Pcstr_record styl ->
@@ -1221,7 +1248,7 @@ let transl_extension_constructor ~scope env type_path type_params
         (* Remove "_" names from parameters used in the constructor *)
         if not cdescr.cstr_generalized then begin
           let vars =
-            Ctype.free_variables (Btype.newgenty (Ttuple args))
+            Ctype.free_variables (Btype.newgenty (Ttuple (List.map fst args)))
           in
           List.iter
             (fun ty ->
@@ -1264,7 +1291,7 @@ let transl_extension_constructor ~scope env type_path type_params
               Types.Cstr_tuple args
           | Some decl ->
               let tl =
-                match List.map get_desc args with
+                match List.map (fun (ty, _) -> get_desc ty) args with
                 | [ Tconstr(_, tl, _) ] -> tl
                 | _ -> assert false
               in
@@ -1527,22 +1554,34 @@ let make_native_repr env core_type ty ~global_repr =
     | Some repr -> repr
     end
 
-let rec parse_native_repr_attributes env core_type ty ~global_repr =
+let prim_const_mode m =
+  match Types.Alloc_mode.check_const m with
+  | Some Global -> Prim_global
+  | Some Local -> Prim_local
+  | None -> assert false
+
+let rec parse_native_repr_attributes env core_type ty rmode ~global_repr =
   match core_type.ptyp_desc, get_desc ty,
     get_native_repr_attribute core_type.ptyp_attributes ~global_repr:None
   with
   | Ptyp_arrow _, Tarrow _, Native_repr_attr_present kind  ->
     raise (Error (core_type.ptyp_loc, Cannot_unbox_or_untag_type kind))
-  | Ptyp_arrow (_, ct1, ct2), Tarrow (_, t1, t2, _), _ ->
+  | Ptyp_arrow (_, ct1, ct2), Tarrow ((_, marg, mret), t1, t2, _), _ ->
     let repr_arg = make_native_repr env ct1 t1 ~global_repr in
     let repr_args, repr_res =
-      parse_native_repr_attributes env ct2 t2 ~global_repr
+      parse_native_repr_attributes env ct2 t2 (prim_const_mode mret) ~global_repr
     in
-    (repr_arg :: repr_args, repr_res)
+    let mode =
+      (* if Builtin_attributes.has_local_opt ct1.ptyp_attributes
+      then Prim_poly *)
+      (* else  *)
+        prim_const_mode marg
+    in
+    ((mode, repr_arg) :: repr_args, repr_res)
   | (Ptyp_poly (_, t) | Ptyp_alias (t, _)), _, _ ->
-     parse_native_repr_attributes env t ty ~global_repr
+     parse_native_repr_attributes env t ty rmode ~global_repr
   | Ptyp_arrow _, _, _ | _, Tarrow _, _ -> assert false
-  | _ -> ([], make_native_repr env core_type ty ~global_repr)
+  | _ -> ([], (rmode, make_native_repr env core_type ty ~global_repr))
 
 
 let check_unboxable env loc ty =
@@ -1588,7 +1627,7 @@ let transl_value_decl env loc valdecl =
         | Native_repr_attr_absent -> None
       in
       let native_repr_args, native_repr_res =
-        parse_native_repr_attributes env valdecl.pval_type ty ~global_repr
+        parse_native_repr_attributes env valdecl.pval_type ty Prim_global ~global_repr
       in
       let prim =
         Primitive.parse_declaration valdecl
@@ -1654,8 +1693,8 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
   let arity = List.length params in
   let constraints =
     List.map (fun (ty, ty', loc) ->
-      let cty = transl_simple_type env ~closed:false ty in
-      let cty' = transl_simple_type env ~closed:false ty' in
+      let cty = transl_simple_type env ~closed:false Global ty in
+      let cty' = transl_simple_type env ~closed:false Global ty' in
       (* Note: We delay the unification of those constraints
          after the unification of parameters, so that clashing
          constraints report an error on the constraint location
@@ -1667,7 +1706,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
   let (tman, man) =  match sdecl.ptype_manifest with
       None -> None, None
     | Some sty ->
-        let cty = transl_simple_type env ~closed:no_row sty in
+        let cty = transl_simple_type env ~closed:no_row Global sty in
         Some cty, Some cty.ctyp_type
   in
   (* In the second part, we check the consistency between the two
@@ -1868,7 +1907,7 @@ let explain_unbound_single ppf tv ty =
 
 
 let tys_of_constr_args = function
-  | Types.Cstr_tuple tl -> tl
+  | Types.Cstr_tuple tl -> List.map fst tl
   | Types.Cstr_record lbls -> List.map (fun l -> l.Types.ld_type) lbls
 
 module Reaching_path = struct
@@ -2178,6 +2217,8 @@ let report_error ppf = function
          type abbreviation,@ \
          write explicitly@]@;<1 2>private %a@]"
         Printtyp.type_expr ty Printtyp.type_expr ty
+  | Global_and_nonlocal ->
+    fprintf ppf "@[A type cannot be both global and nonlocal@]"
 
 let () =
   Location.register_error_of_exn

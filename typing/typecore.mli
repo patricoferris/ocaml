@@ -143,6 +143,10 @@ val name_cases : string -> Typedtree.value Typedtree.case list -> Ident.t
 
 val self_coercion : (Path.t * Location.t list ref) list ref
 
+type submode_reason =
+  | Application of type_expr
+  | Other
+
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
   | Label_mismatch of Longident.t * Errortrace.unification_error
@@ -221,6 +225,12 @@ type error =
   | Missing_type_constraint
   | Wrong_expected_kind of wrong_kind_sort * wrong_kind_context * type_expr
   | Expr_not_a_record_type of type_expr
+  | Local_value_escapes of Value_mode.error * submode_reason * Env.escaping_context option
+  | Local_application_complete of Asttypes.arg_label * [`Prefix|`Single_arg|`Entire_apply]
+  | Param_mode_mismatch of type_expr
+  | Uncurried_function_escapes
+  | Local_return_annotation_mismatch of Location.t
+  | Function_returns_local
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

@@ -38,6 +38,17 @@ type out_string =
 type out_attribute =
   { oattr_name: string }
 
+type out_mutable_or_global =
+  | Ogom_mutable
+  | Ogom_global
+  | Ogom_nonlocal
+  | Ogom_immutable
+
+type out_global =
+  | Ogf_global
+  | Ogf_nonlocal
+  | Ogf_unrestricted
+
 type out_value =
   | Oval_array of out_value list
   | Oval_char of char
@@ -62,12 +73,12 @@ type out_type =
   | Otyp_abstract
   | Otyp_open
   | Otyp_alias of out_type * string
-  | Otyp_arrow of string * out_type * out_type
+  | Otyp_arrow of string * out_alloc_mode * out_type * out_alloc_mode * out_type
   | Otyp_class of bool * out_ident * out_type list
   | Otyp_constr of out_ident * out_type list
   | Otyp_manifest of out_type * out_type
   | Otyp_object of (string * out_type) list * bool option
-  | Otyp_record of (string * bool * out_type) list
+  | Otyp_record of (string * out_mutable_or_global * out_type) list
   | Otyp_stuff of string
   | Otyp_sum of out_constructor list
   | Otyp_tuple of out_type list
@@ -80,13 +91,18 @@ type out_type =
 
 and out_constructor = {
   ocstr_name: string;
-  ocstr_args: out_type list;
+  ocstr_args: (out_type * out_global) list;
   ocstr_return_type: out_type option;
 }
 
 and out_variant =
   | Ovar_fields of (string * bool * out_type list) list
   | Ovar_typ of out_type
+
+and out_alloc_mode =
+  | Oam_local
+  | Oam_global
+  | Oam_unknown
 
 type out_class_type =
   | Octy_constr of out_ident * out_type list
@@ -128,7 +144,7 @@ and out_extension_constructor =
   { oext_name: string;
     oext_type_name: string;
     oext_type_params: string list;
-    oext_args: out_type list;
+    oext_args: (out_type * out_global) list;
     oext_ret_type: out_type option;
     oext_private: Asttypes.private_flag }
 and out_type_extension =
